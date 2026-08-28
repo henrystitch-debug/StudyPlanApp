@@ -1,4 +1,4 @@
-import { createSummary } from "../../../lib/ai/summary";
+import { createSummary } from "../../../../lib/ai/summary";
 
 function parsePDF(file: File){ return ""} //Platzhalter
 function parseWordFile(file: File){ return ""} //Platzhalter

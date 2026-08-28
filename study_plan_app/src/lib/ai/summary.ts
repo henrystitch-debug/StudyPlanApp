@@ -1,5 +1,6 @@
 import { aiReplySummary } from "@/src/types/summary";
 
+// create new summary from AI
 export async function createSummary(text : string){
 
      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', { //TODO: durch tatsächliche AI ersetzen
