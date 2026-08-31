@@ -1,4 +1,4 @@
-import { getStudyplanById } from "@/src/lib/db/studyPlan";
+import { getStudyplanById } from "@/src/lib/db/studyplan";
 
 
 export async function GET (courseId: number){
