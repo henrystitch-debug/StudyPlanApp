@@ -1,6 +1,6 @@
 // create studyplan from AI
 
-export async function createStudyplan(uploads : string){
+export async function createStudyplan(uploads : File){
 
      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', { //TODO: durch tatsächliche AI ersetzen
                         method: 'POST',
