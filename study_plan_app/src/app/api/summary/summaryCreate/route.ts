@@ -1,7 +1,5 @@
 import { createSummary } from "../../../../lib/ai/summary";
-
-function parsePDF(file: File){ return ""} //Platzhalter
-function parseWordFile(file: File){ return ""} //Platzhalter
+import { saveSummary } from "@/src/lib/db/summary";
 
 export async function POST (request: Request){
     try{
@@ -15,31 +13,15 @@ export async function POST (request: Request){
          )
         }
 
-
-        let text = "";
-
-        switch (file.type) {
-            case "text/plain": text = await file.text();
-
-            case "application/pdf": text = await parsePDF(file);
-
-            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": text = await parseWordFile(file);
-        }
-        
-        if (text == ""){
-            return Response.json(
-            {error: "File empty / type not known (only .txt, .pdf, .word"},
-            {status: 400}
-         )
-        }
-
-        const responseAI = await createSummary(text);
+        const responseAI = await createSummary(file);
 
         if(!responseAI){
             return Response.json(
             { error: "Error while extracting file" },
             { status: 500})
           }
+
+        const responseDb = await saveSummary(responseAI.summary);
 
           return Response.json({
             title: responseAI.title,

@@ -1,7 +1,6 @@
-import { createSummary } from "../../../../lib/ai/summary";
 
-function parsePDF(file: File){ return ""} //Platzhalter
-function parseWordFile(file: File){ return ""} //Platzhalter
+import { createQuiz } from "@/src/lib/ai/quizItem";
+import { saveQuizItems } from "@/src/lib/db/quizItem";
 
 export async function POST (request: Request){
     try{
@@ -15,18 +14,18 @@ export async function POST (request: Request){
          )
         }
 
-        const responseAI = await createSummary(file);
+        const responseAI = await createQuiz(file);
 
         if(!responseAI){
             return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error while creating quiz" },
             { status: 500})
           }
 
+          const responseDb = await saveQuizItems(responseAI.quizItems);
+
           return Response.json({
-            title: responseAI.title,
-            summary: responseAI.summary,
-            difficulty: responseAI.difficulty
+            quiz: responseAI.quizItems
             });
         }
 
