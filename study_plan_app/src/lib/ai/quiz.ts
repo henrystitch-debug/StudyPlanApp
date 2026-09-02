@@ -4,6 +4,7 @@ import { aiReplyQuizItem } from "@/src/types/quizItem";
 
 export async function createQuiz(file : File){
 
+    //TODO: Alle drei Abfragearten hier holen
     //TODO: add focus instruction for user
     // A reasonable default range is 10–25 cards for a typical lecture-notes-length document, scaling toward 30-40 for a full textbook chapter. Again, let the model use judgment within a bounded range rather than a fixed count — a dense document and a sparse one shouldn't produce the same number of cards.
 
