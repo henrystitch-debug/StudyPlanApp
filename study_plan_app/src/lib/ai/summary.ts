@@ -1,4 +1,5 @@
 import { aiReplySummary } from "@/src/types/summary";
+import { promptSummary } from "@/src/utils/prompts";
 
 // create new summary from AI
 
@@ -17,14 +18,12 @@ export async function createSummary(text: string) {
         {
           role: "system",
           content:
-            "Du bist ein Assistent, der Lerntexte zusammenfasst. Antworte NUR mit einem JSON-Objekt in genau diesem Format: " +
-            '{"title": string, "summary": string, "difficulty": "easy" | "medium" | "hard"}. ' +
-            "Kein zusätzlicher Text, keine Markdown-Codeblöcke.",
+            promptSummary
         },
         {
           role: "user",
           content:
-            "Fasse den folgenden Text auf ca. ein Fünftel der ursprünglichen Länge zusammen und gib ihm einen Titel:\n\n" +
+            "Summarize this text and give it a title: \n\n" +
             text,
         },
       ],
@@ -32,8 +31,8 @@ export async function createSummary(text: string) {
   });
 
   const data = await response.json();
-  console.log("Kompletter Response-Status:", response.status);
-  console.log("Komplette Groq-Antwort:", JSON.stringify(data, null, 2));
+  console.log("Complete response-status:", response.status);
+  console.log("Complete groq-answer:", JSON.stringify(data, null, 2));
 
   const rawContent = data.choices?.[0]?.message?.content;
 
@@ -50,13 +49,12 @@ export async function createSummary(text: string) {
 
   const result = aiReplySummary.safeParse(parsedContent);
   if (!result.success) {
-    console.log("Zod-Fehler:", result.error);
+    console.log("Zod-Error:", result.error);
     return;
   }
 
   return {
     title: result.data.title,
     summary: result.data.summary,
-    difficulty: result.data.difficulty,
   };
 }
