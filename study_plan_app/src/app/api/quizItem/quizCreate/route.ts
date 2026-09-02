@@ -1,5 +1,5 @@
 
-import { createQuiz } from "@/src/lib/ai/quizItem";
+import { createQuiz } from "@/src/lib/ai/quiz";
 import { saveQuizItems } from "@/src/lib/db/quizItem";
 
 export async function POST (request: Request){
