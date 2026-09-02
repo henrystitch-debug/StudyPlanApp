@@ -36,6 +36,7 @@ export async function createQuiz(file : File){
 
         return {
             title: replyAI.title,
+            type: replyAI.type,
             quizItems: replyAI.quizItems
         };
 }
