@@ -1,17 +1,62 @@
 @import "tailwindcss";
 
 :root {
+  /* base surfaces — dark navy (unchanged) */
   --background: #0a0d1a;
   --foreground: #ededf3;
-
   --panel: #12162a;
   --panel-border: rgba(255, 255, 255, 0.06);
+  --sidebar: #0c0f1d;
 
+  /* accent — amber (unchanged) */
   --accent: #f6a934;
   --accent-foreground: #1a1305;
-
+  --accent-strong: #fde68a;
   --rose: #fb7185;
   --muted: #7c8399;
+  --text-secondary: #cbd5e1;
+
+  /* soft fills, used for hover states / subtle chips / inputs */
+  --overlay: rgba(255, 255, 255, 0.04);
+  --overlay-strong: rgba(255, 255, 255, 0.08);
+  --sunken: rgba(0, 0, 0, 0.2);
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  /* hero card gradient (unchanged) */
+  --hero-from: #151a34;
+  --hero-to: #1a1030;
+}
+
+.light {
+  /* base surfaces — warm creamy paper, matching the reference screenshot:
+     soft oat/cream background, slightly deeper cream panels, warm
+     near-black ink for text, flat/hairline feel throughout */
+  --background: #ece7dd;
+  --foreground: #221f1a;
+  --panel: #e2dccd;
+  --panel-border: rgba(34, 27, 17, 0.14);
+  --sidebar: #e6e0d2;
+
+  /* accent — sampled from the screenshot's "Start Focus" button:
+     a deep brick/maroon red (CTA button, active nav mark and dot,
+     checkboxes, subject tag swatch), replacing amber for this theme */
+  --accent: #7c2116;
+  --accent-foreground: #f6ece0;
+  --accent-strong: #591509;
+  --rose: #a5432b;
+  --muted: #8a8172;
+  --text-secondary: #3c362c;
+
+  --overlay: rgba(34, 27, 17, 0.045);
+  --overlay-strong: rgba(34, 27, 17, 0.09);
+  --sunken: rgba(34, 27, 17, 0.045);
+  --scrim: rgba(34, 27, 17, 0.35);
+
+  /* hero card — a whisper darker than the page background, staying
+     quiet and flat like the screenshot instead of the dark theme's
+     saturated navy/purple gradient */
+  --hero-from: #e6e0d1;
+  --hero-to: #ddd5c1;
 }
 
 @theme inline {
@@ -24,12 +69,41 @@
   --color-rose: var(--rose);
   --color-muted: var(--muted);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-serif: "Georgia", serif;
+  --font-mono: var(--font-geist-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
+  /* headline font — heavy grotesk, matching the reference screenshot's
+     bold black display type (was Georgia serif) */
+  --font-serif: "Helvetica Neue", Arial, "Segoe UI", sans-serif;
+}
+
+html {
+  background: var(--background);
+  color-scheme: dark;
+}
+
+.light {
+  color-scheme: light;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* headings/large numerals use font-serif — push them to the heavy,
+   tight-tracked weight the screenshot uses instead of Georgia's book weight */
+.font-serif {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* every small uppercase/capitalized label (eyebrows, stat captions,
+   nav section labels, the date) switches to monospace + wider tracking,
+   matching the screenshot's "MON 31 AUG — 0 DAY STREAK" / "STUDIED THIS WEEK"
+   styling — done via attribute selector so no component markup changes */
+[class*="uppercase"],
+[class*="capitalize"] {
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
 }
