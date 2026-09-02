@@ -11,3 +11,9 @@ export async function getAllSummaryTitles(){
     //TODO: fetch summary titles from db
     return ["", "", ""];
 }
+
+export async function saveSummary(summary: string){
+
+    //TODO: save summary to db
+    return ["", "", ""];
+}

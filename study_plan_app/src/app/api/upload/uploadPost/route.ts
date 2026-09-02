@@ -1,5 +1,4 @@
-import { createSummary } from "../../../../lib/ai/summary";
-import { saveSummary } from "@/src/lib/db/summary";
+import { saveUpload } from "@/src/lib/db/upload";
 
 export async function POST (request: Request){
     try{
@@ -13,27 +12,23 @@ export async function POST (request: Request){
          )
         }
 
-        const responseAI = await createSummary(file);
+        const responseDb = await saveUpload(file);
 
-        if(!responseAI){
+        if(!responseDb){
             return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error while saving upload" },
             { status: 500})
           }
 
-        const responseDb = await saveSummary(responseAI.summary);
-
           return Response.json({
-            title: responseAI.title,
-            summary: responseAI.summary,
-            difficulty: responseAI.difficulty
+            response: responseDb
             });
         }
 
     catch(err){
         console.error(err);
         return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error while saving upload" },
             { status: 500})
         }
 }

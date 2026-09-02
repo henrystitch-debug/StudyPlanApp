@@ -1,8 +1,9 @@
-import { createSummary } from "../../../../lib/ai/summary";
-import { saveSummary } from "@/src/lib/db/summary";
+import { createStudyplan } from "@/src/lib/ai/studyplan";
+import { saveStudyplan } from "@/src/lib/db/studyplan";
 
 export async function POST (request: Request){
     try{
+        //it will be multiple files
         const formData = await request.formData(); 
         const file = formData.get("file") as File | null;
 
@@ -13,7 +14,7 @@ export async function POST (request: Request){
          )
         }
 
-        const responseAI = await createSummary(file);
+        const responseAI = await createStudyplan(file);
 
         if(!responseAI){
             return Response.json(
@@ -21,12 +22,10 @@ export async function POST (request: Request){
             { status: 500})
           }
 
-        const responseDb = await saveSummary(responseAI.summary);
+          const responseDb = await saveStudyplan("studyplan");
 
           return Response.json({
-            title: responseAI.title,
-            summary: responseAI.summary,
-            difficulty: responseAI.difficulty
+            studyplan: responseAI.studyplan,
             });
         }
 

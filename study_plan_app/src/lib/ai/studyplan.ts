@@ -1,8 +1,6 @@
-// create flashcards from AI
+// create studyplan from AI
 
-import { aiReplyFlashcard } from "@/src/types/flashcard";
-
-export async function createFlashcards(summary : string){
+export async function createStudyplan(uploads : File){
 
      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', { //TODO: durch tatsächliche AI ersetzen
                         method: 'POST',
@@ -15,7 +13,7 @@ export async function createFlashcards(summary : string){
                             "messages": [
                             {
                                 "role": "user",
-                                "content": "Create flashcards for this content: " + summary
+                                "content": "Create a studyplan for this content: " + uploads
                             } //TODO: was für ein Prompt? Was returnt es? 
                         ]
                                 }),
@@ -24,12 +22,8 @@ export async function createFlashcards(summary : string){
         const data = await response.json();
         const replyAI =  data.choices?.[0]?.message?.content ?? JSON.stringify(data); 
 
-        if(!aiReplyFlashcard.safeParse(replyAI).success){
-            return;         
-        }
 
         return {
-            title: replyAI.title,
-            flashcards: replyAI.flashcards
+            studyplan: replyAI.studyplan
         };
 }

@@ -1,6 +1,7 @@
 import { aiReplySummary } from "@/src/types/summary";
 
 // create new summary from AI
+
 export async function createSummary(text: string) {
 
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
