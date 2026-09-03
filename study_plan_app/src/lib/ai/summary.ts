@@ -1,60 +1,61 @@
-import { aiReplySummary } from "@/src/types/summary";
+import { GoogleGenAI } from "@google/genai";
+import { type AiReplySummary } from "@/src/types/summary";
 import { promptSummary } from "@/src/utils/prompts";
 
-// create new summary from AI
+const ai = new GoogleGenAI({});
 
-export async function createSummary(text: string) {
+export async function createSummary(file: File): Promise<AiReplySummary>{
+  const isTextFile =
+    file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md");
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + process.env.GROQ_API_KEY,
-      'Content-Type': 'application/json',
+  let contents;
+
+  if (isTextFile) {
+    const text = await file.text();
+    contents = [{ text: promptSummary + "\n\n" + text }];
+  } else {
+    const arrayBuffer = await file.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+
+    contents = [
+      { text: promptSummary },
+      { inlineData: { mimeType: file.type, data: base64Data } },
+    ];
+  }
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.6-flash",
+    contents,
+    config: {
+    responseMimeType: "application/json",
+    responseSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+        },
+        summary: {
+          type: "string",
+        },
+      },
+      required: ["title", "summary"],
     },
-    body: JSON.stringify({
-      model: "openai/gpt-oss-120b",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            promptSummary
-        },
-        {
-          role: "user",
-          content:
-            "Summarize this text and give it a title: \n\n" +
-            text,
-        },
-      ],
-    }),
+  },
   });
 
-  const data = await response.json();
-  console.log("Complete response-status:", response.status);
-  console.log("Complete groq-answer:", JSON.stringify(data, null, 2));
-
-  const rawContent = data.choices?.[0]?.message?.content;
-
-  if (!rawContent) return;
-
-  let parsedContent: unknown;
-  try {
-    parsedContent = JSON.parse(rawContent);
-  } catch {
-    return;
+  if(response.text == undefined || !response.text){
+    return {
+    title: "",
+    summary: ""
+  }
   }
 
-  console.log("Von Groq erhalten:", parsedContent);
-
-  const result = aiReplySummary.safeParse(parsedContent);
-  if (!result.success) {
-    console.log("Zod-Error:", result.error);
-    return;
-  }
+  const sumAndTitle = JSON.parse(response.text)
+  const ti : string = sumAndTitle.title;
+  const sum : string = sumAndTitle.summary;
 
   return {
-    title: result.data.title,
-    summary: result.data.summary,
-  };
+    title: ti,
+    summary: sum
+  }
 }

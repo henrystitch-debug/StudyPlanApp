@@ -1,7 +1,5 @@
 import { createSummary } from "../../../../lib/ai/summary";
 import { saveSummary } from "@/src/lib/db/summary";
-import { parsePDF } from "@/src/utils/parseFiles";
-import { parseWordFile } from "@/src/utils/parseFiles";
 
 export async function POST (request: Request){
     try{
@@ -14,33 +12,20 @@ export async function POST (request: Request){
             {status: 400}
          )
         }
+        const responseAI = await createSummary(file);
 
-         let text = "";
-
-        switch (file.type) {
-            case "text/plain": text = await file.text();
-
-            case "application/pdf": text = await parsePDF(file);
-
-            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": text = await parseWordFile(file);
-        }
-        
-        if (text == ""){
+        if(!responseAI || responseAI.title == "" ||responseAI.summary == ""){
             return Response.json(
-            {error: "File empty / type not known (only .txt, .pdf, .word"},
-            {status: 400}
-         )
-        }
-
-        const responseAI = await createSummary(text);
-
-        if(!responseAI){
-            return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error creating summary" },
             { status: 500})
           }
 
-        const responseDb = await saveSummary(responseAI.summary);
+        const responseDb = await saveSummary(responseAI.title, responseAI.summary);
+        if(!responseDb){
+            return Response.json(
+            { error: "Failed saving summary" },
+            { status: 500})
+        }
 
           return Response.json({
             title: responseAI.title,
@@ -51,7 +36,7 @@ export async function POST (request: Request){
     catch(err){
         console.error(err);
         return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error while creating summary" },
             { status: 500})
         }
 }

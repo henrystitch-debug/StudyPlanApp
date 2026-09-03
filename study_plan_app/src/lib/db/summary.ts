@@ -12,7 +12,7 @@ export async function getAllSummaryTitles(){
     return ["", "", ""];
 }
 
-export async function saveSummary(summary: string){
+export async function saveSummary(title: string, summary: string){
 
     //TODO: save summary to db
     return ["", "", ""];
