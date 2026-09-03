@@ -1,17 +1,62 @@
 @import "tailwindcss";
 
 :root {
+  /* base surfaces — dark navy (unchanged) */
   --background: #0a0d1a;
   --foreground: #ededf3;
 
   --panel: #12162a;
   --panel-border: rgba(255, 255, 255, 0.06);
+  --sidebar: #0c0f1d;
 
+  /* accent — amber (unchanged) */
   --accent: #f6a934;
   --accent-foreground: #1a1305;
+  --accent-strong: #fde68a;
 
   --rose: #fb7185;
   --muted: #7c8399;
+  --text-secondary: #cbd5e1;
+
+  /* soft fills, used for hover states / subtle chips / inputs */
+  --overlay: rgba(255, 255, 255, 0.04);
+  --overlay-strong: rgba(255, 255, 255, 0.08);
+  --sunken: rgba(0, 0, 0, 0.2);
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  /* hero card gradient — lamp-lit navy/plum (unchanged) */
+  --hero-from: #151a34;
+  --hero-to: #1a1030;
+}
+
+.light {
+  /* base surfaces — white background, warm parchment panels for layering */
+  --background: #ffffff;
+  --foreground: #201f33;
+
+  --panel: #fffdf9;
+  --panel-border: rgba(32, 28, 46, 0.09);
+  --sidebar: #faf6ee;
+
+  /* accent stays the same amber — it's the one element that should feel
+     identical in both modes, like the desk lamp is always on. */
+  --accent: #f6a934;
+  --accent-foreground: #1a1305;
+  --accent-strong: #a8621d;
+
+  --rose: #e11d48;
+  --muted: #746b58;
+  --text-secondary: #4f4a63;
+
+  --overlay: rgba(32, 28, 46, 0.04);
+  --overlay-strong: rgba(32, 28, 46, 0.08);
+  --sunken: rgba(32, 28, 46, 0.03);
+  --scrim: rgba(20, 16, 10, 0.4);
+
+  /* hero card gradient — warm cream into amber, so the Focus Session
+     card still reads as "lit up" the way it does at night */
+  --hero-from: #fff3dd;
+  --hero-to: #ffe9c7;
 }
 
 @theme inline {
@@ -32,4 +77,5 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
