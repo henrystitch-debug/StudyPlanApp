@@ -10,6 +10,7 @@ import {
   X,
   CalendarDays,
   ClipboardList,
+  Layers,
   type LucideIcon,
 } from "lucide-react";
 
@@ -76,6 +77,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { label: "Today", icon: Sun, active: true },
   { label: "Study", icon: BookOpen },
+  { label: "Subjects", icon: Layers },
   { label: "Streak", icon: Flame },
   { label: "Calendar", icon: CalendarDays },
   { label: "Study Plan", icon: ClipboardList },
