@@ -1,41 +1,58 @@
 // create flashcards from AI
+import { GoogleGenAI } from "@google/genai";
+import { AiReplyQuiz, aiReplyQuiz } from "@/src/types/quizItem";
+import { promptQuiz } from "@/src/utils/prompts";
+import { quizSchema } from "@/src/types/quizItem";
 
-import { aiReplyQuizItem } from "@/src/types/quizItem";
-import { promptFlashcards } from "@/src/utils/prompts";
+const ai = new GoogleGenAI({});
 
-export async function createQuiz(file : File){
+export async function createQuiz(file: File): Promise<AiReplyQuiz>{
+  const isTextFile =
+    file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md");
 
-    //TODO: Alle drei Abfragearten hier holen
-    //TODO: add focus instruction for user
-    // A reasonable default range is 10–25 cards for a typical lecture-notes-length document, scaling toward 30-40 for a full textbook chapter. Again, let the model use judgment within a bounded range rather than a fixed count — a dense document and a sparse one shouldn't produce the same number of cards.
+  let contents;
 
-     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', { //TODO: durch tatsächliche AI ersetzen
-                        method: 'POST',
-                        headers: {
-                        Authorization: 'Bearer ' + process.env.OPEN_ROUTER_AI_KEY,
-                        'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            "model": "openrouter/auto-beta",
-                            "messages": [
-                            {
-                                "role": "user",
-                                "content": promptFlashcards
-                            } 
-                        ]
-                                }),
-                            });
-    
-        const data = await response.json();
-        const replyAI =  data.choices?.[0]?.message?.content ?? JSON.stringify(data); 
+  if (isTextFile) {
+    const text = await file.text();
+    contents = [{ text: promptQuiz + "\n\n" + text }];
+  } else {
+    const arrayBuffer = await file.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-        if(!aiReplyQuizItem.safeParse(replyAI).success){
-            return;         
-        }
+    contents = [
+      { text: promptQuiz },
+      { inlineData: { mimeType: file.type, data: base64Data } },
+    ];
+  }
 
-        return {
-            title: replyAI.title,
-            type: replyAI.type,
-            quizItems: replyAI.quizItems
-        };
+  const response = await ai.models.generateContent({
+    model: "gemini-3.6-flash",
+    contents,
+    config: {
+    responseMimeType: "application/json",
+    responseSchema: quizSchema
+    }
+  });
+
+  if(response.text == undefined || !response.text){
+     console.log("+++++++++++++++++++++++++");
+     console.log("+++++++++++++++++++++++++");
+     return { quizFlashcards: [{question : "empty", answer : "empty"}], 
+      quizMCQ : [{question : "empty", answer1 : "empty", answer2: "empty", answer3: "empty", answer4: "empty"}],
+      quizText : [{question : "empty", answer : "empty"}]
+  }
+  }
+
+  const quizResponse = JSON.parse(response.text)
+  const flashcards = quizResponse.flashcards.items;
+  const mcq = quizResponse.mcq.items;
+  const freeText = quizResponse.openText.items;
+
+  const fullQuiz = {
+      quizFlashcards: flashcards, 
+      quizMCQ : mcq,
+      quizText : freeText
+  }
+
+  return fullQuiz;
 }

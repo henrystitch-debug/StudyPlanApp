@@ -22,10 +22,12 @@ export async function POST (request: Request){
             { status: 500})
           }
 
-          const responseDb = await saveQuizItems(responseAI.title, responseAI.type, responseAI.quizItems);
+          const responseDb = await saveQuizItems(responseAI.quizFlashcards, responseAI.quizMCQ, responseAI.quizText);
 
           return Response.json({
-            quiz: responseAI.quizItems
+            flashcards: responseAI.quizFlashcards,
+            mcq: responseAI.quizMCQ,
+            freeText: responseAI.quizText
             });
         }
 
