@@ -12,6 +12,7 @@ formData.append("file", new Blob([fileBuffer]), "Buckelwal.txt");
       if (!res.ok) throw new Error("Error occured while processing the file");
       const data = await res.json();
 
+      //muss stringifyen
       if(data){
       console.log("################################");
       console.log("#FLASHCARDS: " + data.flashcards);

@@ -35,8 +35,6 @@ export async function createQuiz(file: File): Promise<AiReplyQuiz>{
   });
 
   if(response.text == undefined || !response.text){
-     console.log("+++++++++++++++++++++++++");
-     console.log("+++++++++++++++++++++++++");
      return { quizFlashcards: [{question : "empty", answer : "empty"}], 
       quizMCQ : [{question : "empty", answer1 : "empty", answer2: "empty", answer3: "empty", answer4: "empty"}],
       quizText : [{question : "empty", answer : "empty"}]
@@ -44,6 +42,17 @@ export async function createQuiz(file: File): Promise<AiReplyQuiz>{
   }
 
   const quizResponse = JSON.parse(response.text)
+
+  console.log("+++++++++++++++++++++++++");
+  console.log("quizResponse: " + JSON.stringify(quizResponse));
+  console.log("+++++++++++++++++++++++++");
+  console.log("quizResponse.flashcards: " + JSON.stringify(quizResponse.flashcards));
+  console.log("+++++++++++++++++++++++++");
+  console.log("quizResponse.mcq: " + JSON.stringify(quizResponse.mcq));
+  console.log("+++++++++++++++++++++++++");
+  console.log("quizResponse.openText: " + JSON.stringify(quizResponse.openText));
+  console.log("+++++++++++++++++++++++++");
+
   const flashcards = quizResponse.flashcards.items;
   const mcq = quizResponse.mcq.items;
   const freeText = quizResponse.openText.items;
