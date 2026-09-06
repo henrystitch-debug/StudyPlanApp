@@ -39,7 +39,7 @@ export function FocusCard() {
   };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-panel-border bg-[linear-gradient(to_bottom_right,var(--hero-from),var(--hero-to))] p-6 sm:p-8">
+    <div className="relative overflow-hidden rounded-2xl border border-panel-border bg-[linear-gradient(to_bottom_right,var(--hero-from),var(--hero-to))] p-6 shadow-[var(--shadow-hero)] sm:p-8">
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-md">
           <div className="mb-3 flex items-center gap-2 text-[12px] font-medium uppercase tracking-wider text-accent">
