@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Menu, Upload, File as FileIconLucide, Trash2, Plus } from "lucide-react";
-import { useTheme, ThemeToggle, Sidebar } from "./shared-shell";
+import { useTheme, ThemeToggle, Sidebar } from "../shared_shell";
 
 type SubjectDocument = {
   id: string;
