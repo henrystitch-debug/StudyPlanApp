@@ -18,45 +18,48 @@
   --muted: #7c8399;
   --text-secondary: #cbd5e1;
 
-  /* soft fills, used for hover states / subtle chips / inputs */
   --overlay: rgba(255, 255, 255, 0.04);
   --overlay-strong: rgba(255, 255, 255, 0.08);
   --sunken: rgba(0, 0, 0, 0.2);
   --scrim: rgba(0, 0, 0, 0.6);
 
-  /* hero card gradient — lamp-lit navy/plum (unchanged) */
   --hero-from: #151a34;
   --hero-to: #1a1030;
+  --hero-glow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --hover-glow: 0 0 0 1px rgba(246, 169, 52, 0.4), 0 4px 20px rgba(246, 169, 52, 0.25);
 }
 
 .light {
-  /* base surfaces — white background, warm parchment panels for layering */
+  /* background back to white; blue now lives in sidebar/hero/sunken
+     surfaces instead, so it still contrasts against something */
   --background: #ffffff;
-  --foreground: #201f33;
+  --foreground: #12142a;
 
-  --panel: #fffdf9;
-  --panel-border: rgba(32, 28, 46, 0.09);
-  --sidebar: #faf6ee;
+  --panel: #ffffff;
+  --panel-border: rgba(18, 20, 42, 0.10);
+  --sidebar: #dde3f7;
 
-  /* accent stays the same amber — it's the one element that should feel
-     identical in both modes, like the desk lamp is always on. */
+  /* accent stays identical — the lamp is always on */
   --accent: #f6a934;
   --accent-foreground: #1a1305;
-  --accent-strong: #a8621d;
+  --accent-strong: #c2660c;
 
   --rose: #e11d48;
-  --muted: #746b58;
-  --text-secondary: #4f4a63;
+  --muted: #565a86;
+  --text-secondary: #2a2c52;
 
-  --overlay: rgba(32, 28, 46, 0.04);
-  --overlay-strong: rgba(32, 28, 46, 0.08);
-  --sunken: rgba(32, 28, 46, 0.03);
+  --overlay: rgba(18, 20, 70, 0.05);
+  --overlay-strong: rgba(18, 20, 70, 0.10);
+  --sunken: rgba(30, 40, 120, 0.10);
   --scrim: rgba(20, 16, 10, 0.4);
 
-  /* hero card gradient — warm cream into amber, so the Focus Session
-     card still reads as "lit up" the way it does at night */
-  --hero-from: #fff3dd;
-  --hero-to: #ffe9c7;
+  /* hero card gradient — deep indigo into amber, with glow */
+  --hero-from: #aab8ec;
+  --hero-to: #ffc978;
+  --hero-glow: 0 8px 40px rgba(246, 169, 52, 0.45), 0 0 60px rgba(120, 140, 230, 0.3);
+
+  /* hover glow: cool blue ring + soft amber bleed */
+  --hover-glow: 0 0 0 1px rgba(120, 140, 230, 0.35), 0 4px 24px rgba(246, 169, 52, 0.3);
 }
 
 @theme inline {
@@ -68,6 +71,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-rose: var(--rose);
   --color-muted: var(--muted);
+  --shadow-hero: var(--hero-glow);
+  --shadow-hover-glow: var(--hover-glow);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: "Georgia", serif;
@@ -78,4 +83,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* reusable hover-glow: add this class to any card, button, or list
+   item you want to "light up" on hover */
+.hover-glow {
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.hover-glow:hover {
+  box-shadow: var(--shadow-hover-glow);
+  transform: translateY(-1px);
 }
