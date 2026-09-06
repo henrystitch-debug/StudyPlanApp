@@ -12,16 +12,36 @@ formData.append("file", new Blob([fileBuffer]), "Buckelwal.txt");
       if (!res.ok) throw new Error("Error occured while processing the file");
       const data = await res.json();
 
-      //muss stringifyen
-      if(data){
-      console.log("################################");
-      console.log("#FLASHCARDS: " + data.flashcards);
-      console.log("#MCQ: " + data.mcq);
-      console.log("#OPENTEXT: " + data.openText);
-      console.log("################################");
-      }
+    if (data) {
+  console.log("========== FLASHCARDS ==========");
+
+  data.flashcards?.forEach((card, index: number) => {
+    console.log(
+      `#${index + 1} question: ${card.question} | answer: ${card.answer}`
+    );
+  });
+
+  console.log("========== MCQ ==========");
+
+  data.mcq?.forEach((question, index: number) => {
+    console.log(`#${index + 1} question: ${question.question}`);
+    console.log(`  A: ${question.options[0]}`);
+    console.log(`  B: ${question.options[1]}`);
+    console.log(`  C: ${question.options[2]}`);
+    console.log(`  D: ${question.options[3]}`);
+    console.log(`  correct: ${question.correctIndex}`);
+  });
+
+  console.log("========== OPEN TEXT ==========");
+
+  data.openText?.forEach((question, index: number) => {
+    console.log(
+      `#${index + 1} question: ${question.question} | answer: ${question.modelAnswer}`
+    );
+  });
+ }
 }
 
 testUpload().catch((err) => {
-  console.error("##### Error :", err);
+  console.error("Error :", err);
 });

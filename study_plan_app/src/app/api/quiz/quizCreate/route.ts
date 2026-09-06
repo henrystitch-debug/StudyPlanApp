@@ -27,7 +27,7 @@ export async function POST (request: Request){
           return Response.json({
             flashcards: responseAI.quizFlashcards,
             mcq: responseAI.quizMCQ,
-            freeText: responseAI.quizText
+            openText: responseAI.quizText
             });
         }
 

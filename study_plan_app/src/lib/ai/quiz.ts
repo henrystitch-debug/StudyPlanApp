@@ -36,31 +36,21 @@ export async function createQuiz(file: File): Promise<AiReplyQuiz>{
 
   if(response.text == undefined || !response.text){
      return { quizFlashcards: [{question : "empty", answer : "empty"}], 
-      quizMCQ : [{question : "empty", answer1 : "empty", answer2: "empty", answer3: "empty", answer4: "empty"}],
+      quizMCQ : [{question : "empty", answerA : "empty", answerB: "empty", answerC: "empty", answerD: "empty",correctIndex: 0}],
       quizText : [{question : "empty", answer : "empty"}]
   }
   }
 
   const quizResponse = JSON.parse(response.text)
 
-  console.log("+++++++++++++++++++++++++");
-  console.log("quizResponse: " + JSON.stringify(quizResponse));
-  console.log("+++++++++++++++++++++++++");
-  console.log("quizResponse.flashcards: " + JSON.stringify(quizResponse.flashcards));
-  console.log("+++++++++++++++++++++++++");
-  console.log("quizResponse.mcq: " + JSON.stringify(quizResponse.mcq));
-  console.log("+++++++++++++++++++++++++");
-  console.log("quizResponse.openText: " + JSON.stringify(quizResponse.openText));
-  console.log("+++++++++++++++++++++++++");
-
-  const flashcards = quizResponse.flashcards.items;
-  const mcq = quizResponse.mcq.items;
-  const freeText = quizResponse.openText.items;
+  const flashcards = quizResponse.flashcards;
+  const mcq = quizResponse.mcq;
+  const openText = quizResponse.openText;
 
   const fullQuiz = {
       quizFlashcards: flashcards, 
       quizMCQ : mcq,
-      quizText : freeText
+      quizText : openText
   }
 
   return fullQuiz;

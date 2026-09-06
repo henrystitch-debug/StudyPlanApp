@@ -19,7 +19,7 @@ export const promptQuiz = `You are a study aid for university students. Generate
                         - Cover the breadth of the document, not just the first section.
                         - Avoid trivial or overly obvious questions.
                         - Avoid duplicating the same concept across items or across the three types.
-                        - Generate between 7 and 40 cards, depending on how much distinct testable content the document actually contains — do not pad to hit a number.
+                        - Generate between 5 and 30 cards per quiz, depending on how much distinct testable content the document actually contains — do not pad to hit a number.
 
                         1. FLASHCARDS
                         - Each flashcard tests ONE discrete fact, definition, or concept — not multiple ideas bundled together.
