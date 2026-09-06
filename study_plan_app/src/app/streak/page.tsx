@@ -1,9 +1,4 @@
-"use client";
-import { useState } from "react";
-import { Menu, Flame, Trophy, CalendarCheck } from "lucide-react";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { useTheme } from "@/hooks/useTheme";
+import { Flame, Trophy, CalendarCheck } from "lucide-react";
 
 // TODO: Platzhalterdaten – später aus der Datenbank laden
 // (z.B. aus den täglichen Study-Session-Logs berechnen), statt hart codiert.
@@ -51,90 +46,61 @@ function StatCard({
 }
 
 export default function StreakPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
-
   return (
-    <div className="flex h-full min-h-screen w-full bg-background font-sans">
-      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 sm:px-8">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMenuOpen(true)}
-              className="rounded-md p-1.5 text-muted hover:bg-[var(--overlay)] md:hidden"
-              aria-label="Open menu"
-            >
-              <Menu size={20} />
-            </button>
-          </div>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </header>
+    <>
+      <h1 className="mb-6 text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
+        Streak
+      </h1>
 
-        <main className="flex-1 px-4 pb-10 pt-2 sm:px-8">
-          <h1 className="mb-6 text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
-            Streak
-          </h1>
-
-          {/* Große Streak-Anzeige */}
-          <div className="relative mb-8 overflow-hidden rounded-2xl border border-panel-border bg-[linear-gradient(to_bottom_right,var(--hero-from),var(--hero-to))] p-8 text-center">
-            <Flame size={28} className="mx-auto mb-3 text-rose" />
-            <p className="text-[46px] font-medium leading-none text-[var(--accent-strong)] font-serif">
-              {CURRENT_STREAK}
-            </p>
-            <p className="mt-2 text-[12.5px] uppercase tracking-wider text-muted">
-             <p className="mt-2 text-[12.5px] uppercase tracking-wider text-muted">
-  Day streak
-</p>
-            </p>
-            <p className="mx-auto mt-3 max-w-xs text-[12.5px] leading-5 text-muted">
-              Study today to start a new streak &ndash; every focus session
-              counts.
-            </p>
-          </div>
-
-          {/* Kennzahlen */}
-          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard icon={Trophy} label="Longest Streak" value={LONGEST_STREAK} />
-            <StatCard
-              icon={CalendarCheck}
-              label="Total Study Days"
-              value={TOTAL_STUDY_DAYS}
-            />
-            <StatCard icon={Flame} label="Current Streak" value={CURRENT_STREAK} />
-          </div>
-
-          {/* Aktivitäts-Heatmap */}
-          <section className="rounded-2xl border border-panel-border bg-panel p-5">
-            <h2 className="mb-4 text-[15px] font-medium text-foreground font-serif">
-              Activity
-            </h2>
-            <div className="flex flex-col gap-1.5">
-              {ACTIVITY_WEEKS.map((week, wIdx) => (
-                <div key={wIdx} className="flex gap-1.5">
-                  {week.map((level, dIdx) => (
-                    <div
-                      key={dIdx}
-                      className={`h-5 w-5 rounded-sm ${activityColor(level)}`}
-                      title={`Level ${level}`}
-                    />
-                  ))}
-                </div>
-              ))}
-              <div className="mt-1 flex gap-1.5">
-                {WEEKDAY_LABELS.map((d, i) => (
-                  <span
-                    key={i}
-                    className="w-5 text-center text-[10px] text-muted"
-                  >
-                    {d}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </section>
-        </main>
+      <div className="relative mb-8 overflow-hidden rounded-2xl border border-panel-border bg-[linear-gradient(to_bottom_right,var(--hero-from),var(--hero-to))] p-8 text-center">
+        <Flame size={28} className="mx-auto mb-3 text-rose" />
+        <p className="text-[46px] font-medium leading-none text-[var(--accent-strong)] font-serif">
+          {CURRENT_STREAK}
+        </p>
+        <p className="mt-2 text-[12.5px] uppercase tracking-wider text-muted">
+          Day streak
+        </p>
+        <p className="mx-auto mt-3 max-w-xs text-[12.5px] leading-5 text-muted">
+          Study today to start a new streak &ndash; every focus session
+          counts.
+        </p>
       </div>
-    </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard icon={Trophy} label="Longest Streak" value={LONGEST_STREAK} />
+        <StatCard
+          icon={CalendarCheck}
+          label="Total Study Days"
+          value={TOTAL_STUDY_DAYS}
+        />
+        <StatCard icon={Flame} label="Current Streak" value={CURRENT_STREAK} />
+      </div>
+
+      <section className="rounded-2xl border border-panel-border bg-panel p-5">
+        <h2 className="mb-4 text-[15px] font-medium text-foreground font-serif">
+          Activity
+        </h2>
+        <div className="flex flex-col gap-1.5">
+          {ACTIVITY_WEEKS.map((week, wIdx) => (
+            <div key={wIdx} className="flex gap-1.5">
+              {week.map((level, dIdx) => (
+                <div
+                  key={dIdx}
+                  className={`h-5 w-5 rounded-sm ${activityColor(level)}`}
+                  title={`Level ${level}`}
+                />
+              ))}
+            </div>
+          ))}
+          <div className="mt-1 flex gap-1.5">
+            {WEEKDAY_LABELS.map((d, i) => (
+              <span key={i} className="w-5 text-center text-[10px] text-muted">
+                {d}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+    </>
   );
 }
