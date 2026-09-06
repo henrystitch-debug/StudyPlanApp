@@ -1,8 +1,7 @@
 import { getAllEventsByUserId } from "@/src/lib/db/calendar";
 
-export async function GET (id: number){
+export async function GET (userId: number){
 
-    const userId = id;
     const dbResponse = getAllEventsByUserId(userId);
 
     if(!dbResponse){

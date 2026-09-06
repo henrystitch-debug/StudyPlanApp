@@ -10,3 +10,9 @@ export async function getAllEventsByUserId(id : number) {
 
  return {};
 }
+
+export async function getEventsInRange(userId : number, startDate: string, endDate: string) {
+ //TODO: implement db call 
+
+ return {};
+}
