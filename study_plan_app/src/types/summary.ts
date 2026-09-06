@@ -5,7 +5,7 @@ export const aiReplySummary = z.object({
 });
 
 export type SummaryResult =
-  | { success: true; summary: AiReplySummary }
+  | { success: true; summaryContent: AiReplySummary }
   | { success: false; error: string };
 
 export type AiReplySummary = z.infer<typeof aiReplySummary>

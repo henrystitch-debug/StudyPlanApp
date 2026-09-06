@@ -54,6 +54,6 @@ export async function createSummary(file: File): Promise<SummaryResult>{
   const sum : string = sumAndTitle.summary;
 
   return {
-    success: true, summary: {title: ti, summary: sum}
+    success: true, summaryContent: {title: ti, summary: sum}
   }
 }

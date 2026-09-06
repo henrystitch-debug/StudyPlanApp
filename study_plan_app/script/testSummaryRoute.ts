@@ -13,9 +13,8 @@ formData.append("file", new Blob([fileBuffer]), "Buckelwal.txt");
       const data = await res.json();
 
       if(data.title && data.summary){
-      console.log("+++++++++++++++++++++++++++++");
+      console.log("=============TEST SUMMARY==============");
       console.log("TITLE: " + data.title);
-      console.log("+++++++++++++++++++++++++++++");
       console.log("SUMMARY: " + data.summary);
       }
 }

@@ -14,13 +14,13 @@ export async function POST (request: Request){
         }
         const responseAI = await createSummary(file);
 
-        if(!responseAI || responseAI.title == "" ||responseAI.summary == ""){
+        if(!responseAI || !responseAI.success){
             return Response.json(
             { error: "Error creating summary" },
             { status: 500})
           }
 
-        const responseDb = await saveSummary(responseAI.title, responseAI.summary);
+        const responseDb = await saveSummary(responseAI.summaryContent.title, responseAI.summaryContent.summary);
         if(!responseDb){
             return Response.json(
             { error: "Failed saving summary" },
@@ -28,8 +28,8 @@ export async function POST (request: Request){
         }
 
           return Response.json({
-            title: responseAI.title,
-            summary: responseAI.summary,
+            title: responseAI.summaryContent.title,
+            summary: responseAI.summaryContent.summary,
             });
         }
 
