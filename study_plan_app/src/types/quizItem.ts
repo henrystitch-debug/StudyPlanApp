@@ -13,6 +13,9 @@ export const aiReplyQuiz = z.object({
     quizMCQ : quizItemsMCQ,
     quizText : quizItemsQA
 })
+export type QuizResult =
+  | { success: true; quiz: AiReplyQuiz }
+  | { success: false; error: string };
 
 export type AiReplyQuiz = z.infer<typeof aiReplyQuiz>
 

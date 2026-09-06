@@ -3,4 +3,9 @@ export const aiReplySummary = z.object({
   title: z.string(),
   summary: z.string(),
 });
+
+export type SummaryResult =
+  | { success: true; summary: AiReplySummary }
+  | { success: false; error: string };
+
 export type AiReplySummary = z.infer<typeof aiReplySummary>

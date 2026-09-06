@@ -1,12 +1,11 @@
 // create flashcards from AI
 import { GoogleGenAI } from "@google/genai";
-import { AiReplyQuiz, aiReplyQuiz } from "@/src/types/quizItem";
 import { promptQuiz } from "@/src/utils/prompts";
-import { quizSchema } from "@/src/types/quizItem";
+import { quizSchema, QuizResult } from "@/src/types/quizItem";
 
 const ai = new GoogleGenAI({});
 
-export async function createQuiz(file: File): Promise<AiReplyQuiz>{
+export async function createQuiz(file: File): Promise<QuizResult>{
   const isTextFile =
     file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md");
 
@@ -35,10 +34,8 @@ export async function createQuiz(file: File): Promise<AiReplyQuiz>{
   });
 
   if(response.text == undefined || !response.text){
-     return { quizFlashcards: [{question : "empty", answer : "empty"}], 
-      quizMCQ : [{question : "empty", answerA : "empty", answerB: "empty", answerC: "empty", answerD: "empty",correctIndex: 0}],
-      quizText : [{question : "empty", answer : "empty"}]
-  }
+     return { success: false, error: "No quiz received."
+   }
   }
 
   const quizResponse = JSON.parse(response.text)
@@ -53,5 +50,5 @@ export async function createQuiz(file: File): Promise<AiReplyQuiz>{
       quizText : openText
   }
 
-  return fullQuiz;
+  return {success: true, quiz: fullQuiz};
 }

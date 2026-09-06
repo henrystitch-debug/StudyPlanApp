@@ -1,10 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
-import { type AiReplySummary } from "@/src/types/summary";
+import { type AiReplySummary, type SummaryResult } from "@/src/types/summary";
 import { promptSummary } from "@/src/utils/prompts";
 
 const ai = new GoogleGenAI({});
 
-export async function createSummary(file: File): Promise<AiReplySummary>{
+export async function createSummary(file: File): Promise<SummaryResult>{
   const isTextFile =
     file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md");
 
@@ -45,17 +45,15 @@ export async function createSummary(file: File): Promise<AiReplySummary>{
 
   if(response.text == undefined || !response.text){
     return {
-    title: "",
-    summary: ""
+    success: false, error: "No summary received"
   }
-  }
+}
 
   const sumAndTitle = JSON.parse(response.text)
   const ti : string = sumAndTitle.title;
   const sum : string = sumAndTitle.summary;
 
   return {
-    title: ti,
-    summary: sum
+    success: true, summary: {title: ti, summary: sum}
   }
 }

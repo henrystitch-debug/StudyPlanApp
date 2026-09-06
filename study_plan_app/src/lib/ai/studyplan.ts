@@ -34,7 +34,7 @@ export async function createStudyplan(startDate: Date, endDate: Date, calendarEv
 
     if(!response.text){
         return {
-            success: false, error: "No text received from API"
+            success: false, error: "No studyplan received from API"
         }
     }
 
