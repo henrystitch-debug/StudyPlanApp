@@ -1,13 +1,15 @@
-import { Sun, BookOpen, Flame, CalendarDays, ClipboardList, BarChart2 } from "lucide-react";
+import { LayoutDashboard, BookOpen, Flame, CalendarDays, ClipboardList, BarChart2 } from "lucide-react";
 import type { NavItem, TodoItem, CoursePlan } from "./types";
 
+// TODO: "Analytics" hat noch keine eigene Seite – Link zeigt vorerst auf "#"
+// (Sidebar behandelt das als deaktiviert), bis die Seite existiert.
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Today", icon: Sun, active: true },
-  { label: "Flashcards", icon: BookOpen },
-  { label: "Streak", icon: Flame },
-  { label: "Calendar", icon: CalendarDays },
-  { label: "Study Plan", icon: ClipboardList },
-  { label: "Analytics", icon: BarChart2 },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/" },
+  { label: "Flashcards", icon: BookOpen, href: "/study" },
+  { label: "Streak", icon: Flame, href: "/streak" },
+  { label: "Calendar", icon: CalendarDays, href: "/calendar" },
+  { label: "Subjects", icon: ClipboardList, href: "/subjects" },
+  { label: "Analytics", icon: BarChart2, href: "#" },
 ];
 
 export const WEEKDAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];

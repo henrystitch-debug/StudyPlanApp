@@ -6,7 +6,7 @@ export type Theme = "dark" | "light";
 export type NavItem = {
   label: string;
   icon: LucideIcon;
-  active?: boolean;
+  href: string;
 };
 
 export type TodoItem = {

@@ -4,6 +4,10 @@ export default function Home() {
   return <DashboardPage />;
 }
 
+/*
+// Alte Version, jetzt in components/dashboard/DashboardPage.tsx ausgelagert.
+// Auskommentiert stehen gelassen als Referenz, nicht aktiv.
+
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeWidgetIds, setActiveWidgetIds] =
@@ -76,3 +80,4 @@ export default function Home() {
     </div>
   );
 }
+*/
