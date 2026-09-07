@@ -6,7 +6,7 @@ taskName: z.string(),
 description: z. string(),
 location: z.string(),
 isCompleted: z.boolean(),
-scheduledDate: z.date(),
+scheduledDate: z.string(),
 estimatedTime: z.string(),
 })
 
@@ -20,9 +20,7 @@ const aiStudyItem = z.object({
   scheduledDate: z.string(),
 });
 
-export const aiStudyplanResponse = z.object({
-  items: z.array(aiStudyItem),
-});
+export const aiStudyplanResponse = z.array(aiStudyItem);
 
 export const studyplanResponseSchema = {
   type: "object",
@@ -46,8 +44,9 @@ export const studyplanResponseSchema = {
 };
 
 export type StudyplanResult =
-  | { success: true; studyplan: Studyplan }
+  | { success: true; studyplan: AiStudyplanResponse }
   | { success: false; error: string };
 
 export type StudyItem = z.infer<typeof studyItem>
 export type Studyplan = z.infer<typeof studyplan>
+export type AiStudyplanResponse = z.infer<typeof aiStudyplanResponse>

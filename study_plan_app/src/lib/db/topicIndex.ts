@@ -6,7 +6,7 @@ export async function getTopicIndex(uploadId: number){
     return {};
 }
 
-export async function saveTopicIndex(topicIndex: TopicIndex){
+export async function saveTopicIndex(uploadId: number, topicIndex: TopicIndex){
 
     //TODO: save studyplan to db
     return {success: true};

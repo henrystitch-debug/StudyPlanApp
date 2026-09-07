@@ -1,4 +1,4 @@
-import { Studyplan } from "@/src/types/studyplan";
+import { AiStudyplanResponse } from "@/src/types/studyplan";
 
 export async function getStudyplanById(courseId: number){
 
@@ -6,10 +6,10 @@ export async function getStudyplanById(courseId: number){
     return {};
 }
 
-export async function saveStudyplan(courseId: number, studyplan: Studyplan){
+export async function saveStudyplan(courseId: number, studyplan: AiStudyplanResponse){
 
     //TODO: save studyplan to db
-    //TODO: studyplanId = 0 wird mitgeschickt -> muss in db neu generiert werden
+    //TODO: studyplanId muss für alle (derselbe) generiert werden!! aktuell gibt es das Feld nicht
     
     return {success: true};
 }

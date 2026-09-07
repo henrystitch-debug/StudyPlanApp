@@ -1,11 +1,12 @@
-import { Calender } from "@/src/types/calender";
 import { createStudyplan } from "@/src/lib/ai/studyplan";
 import { saveStudyplan } from "@/src/lib/db/studyplan";
-import { TopicIndex } from "@/src/types/topicIndex";
 
-export async function POST (courseId: number, startDate: Date, endDate: Date, events: Calender, topicIndex: TopicIndex, capacity: number){
+export async function POST (request: Request){
     try{
-        const responseAI = await createStudyplan(startDate, endDate, events, topicIndex, capacity);
+
+        const body = await request.json();
+        
+        const responseAI = await createStudyplan(body.startDate, body.endDate, body.events, body.topicIndeces, body.capacity);
 
         if(!responseAI || !responseAI.success){
             return Response.json(
@@ -13,7 +14,7 @@ export async function POST (courseId: number, startDate: Date, endDate: Date, ev
             { status: 500})
           }
 
-          const responseDb = await saveStudyplan(courseId, responseAI.studyplan);
+          const responseDb = await saveStudyplan(body.courseId, responseAI.studyplan);
 
           if(!responseDb){
             return Response.json(

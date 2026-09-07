@@ -2,6 +2,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { promptQuiz } from "@/src/utils/prompts";
 import { quizSchema, QuizResult } from "@/src/types/quizItem";
+import { withRetry } from "@/src/utils/retryApiCall";
+import { GEMINI_MODEL } from "./config";
 
 const ai = new GoogleGenAI({});
 
@@ -24,14 +26,15 @@ export async function createQuiz(file: File): Promise<QuizResult>{
     ];
   }
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.6-flash",
+  const response = await withRetry(() =>
+   ai.models.generateContent({
+    model: GEMINI_MODEL,
     contents,
     config: {
     responseMimeType: "application/json",
     responseSchema: quizSchema
     }
-  });
+  }));
 
   if(response.text == undefined || !response.text){
      return { success: false, error: "No quiz received."
@@ -40,14 +43,10 @@ export async function createQuiz(file: File): Promise<QuizResult>{
 
   const quizResponse = JSON.parse(response.text)
 
-  const flashcards = quizResponse.flashcards;
-  const mcq = quizResponse.mcq;
-  const openText = quizResponse.openText;
-
   const fullQuiz = {
-      quizFlashcards: flashcards, 
-      quizMCQ : mcq,
-      quizText : openText
+      flashcards: quizResponse.flashcards, 
+      mcq : quizResponse.mcq,
+      openText : quizResponse.openText
   }
 
   return {success: true, quiz: fullQuiz};

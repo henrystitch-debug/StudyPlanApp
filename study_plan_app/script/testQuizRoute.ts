@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 
 //Run file: npx tsx script/testQuizRoute.ts
+ 
+//TODO: updaten - file wird nicht mehr direkt gesendet
 
 async function testUpload(){
 const fileBuffer = fs.readFileSync(path.join(__dirname, "test_files", "Buckelwal.txt"));

@@ -9,9 +9,9 @@ export const quizItemsMCQ = z.array(quizItemMCQ);
 export type QuizItemsMCQ = z.infer<typeof quizItemsMCQ>
 
 export const aiReplyQuiz = z.object({
-    quizFlashcards: quizItemsQA, 
-    quizMCQ : quizItemsMCQ,
-    quizText : quizItemsQA
+    flashcards: quizItemsQA, 
+    mcq : quizItemsMCQ,
+    openText : quizItemsQA
 })
 export type QuizResult =
   | { success: true; quiz: AiReplyQuiz }

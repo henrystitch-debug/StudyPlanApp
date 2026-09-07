@@ -3,6 +3,7 @@ import path from "path";
 
 //Run file: npx tsx script/testSummaryRoute.ts
 
+//TODO: updaten - file wird nicht mehr direkt gesendet
 async function testUpload(){
 const fileBuffer = fs.readFileSync(path.join(__dirname, "test_files", "Buckelwal.txt"));
 const formData = new FormData();
@@ -16,9 +17,10 @@ formData.append("file", new Blob([fileBuffer]), "Buckelwal.txt");
       console.log("=============TEST SUMMARY==============");
       console.log("TITLE: " + data.title);
       console.log("SUMMARY: " + data.summary);
+      console.log("STUDYPLAN: " + data.studyplan)
       }
 }
 
 testUpload().catch((err) => {
-  console.error("##### Error :", err);
+  console.error("#Error :", err);
 });
