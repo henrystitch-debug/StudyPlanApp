@@ -1,11 +1,29 @@
 "use client";
 import { useState } from "react";
-import { Upload, File as FileIconLucide, Trash2, Plus } from "lucide-react";
+import {
+  Upload,
+  File as FileIconLucide,
+  Trash2,
+  Plus,
+  Sparkles,
+  Loader2,
+  FileDown,
+} from "lucide-react";
+import jsPDF from "jspdf";
+
+type DocumentSummary = {
+  title: string;
+  summary: string;
+};
 
 type SubjectDocument = {
   id: string;
   name: string;
   uploadedLabel: string;
+  file: File; // wird für den Summary-Request an den Server gebraucht
+  summary?: DocumentSummary;
+  isSummarizing?: boolean;
+  summaryError?: string;
 };
 
 // TODO: "art" ist aktuell das einzige, fest codierte Fach. Sobald mehrere
@@ -14,12 +32,12 @@ type SubjectDocument = {
 const SUBJECT_NAME = "art";
 
 function AddCourseCard() {
-  // TODO: Mockup-Button ohne Funktion – hier später ein Modal/Formular
-  // öffnen, das POST /api/subjects aufruft und ein neues Fach anlegt.
+  // TODO: Mockup ohne Funktion – hier später ein Modal/Formular öffnen,
+  // das POST /api/subjects aufruft und ein neues Fach anlegt.
   return (
     <button
       onClick={() => console.log("TODO: neues Fach anlegen")}
-      className="flex h-full min-h-[132px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] text-muted transition-colors hover:border-accent hover:text-[var(--text-secondary)]"
+      className="flex h-full min-h-[132px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] text-muted transition-colors hover:bg-[var(--overlay)] hover:text-[var(--text-secondary)]"
     >
       <Plus size={18} />
       <span className="text-[12.5px]">Add course</span>
@@ -27,21 +45,114 @@ function AddCourseCard() {
   );
 }
 
+function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 48;
+  const maxWidth = pageWidth - margin * 2;
+
+  // Titel
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  const titleLines = doc.splitTextToSize(summary.title, maxWidth);
+  doc.text(titleLines, margin, 64);
+
+  // Quelle (Dateiname), klein und gedämpft
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text(`Source: ${sourceFileName}`, margin, 84 + titleLines.length * 4);
+  doc.setTextColor(0);
+
+  // Fließtext, mit automatischem Zeilenumbruch UND Seitenumbruch
+  doc.setFontSize(11);
+  const bodyLines = doc.splitTextToSize(summary.summary, maxWidth);
+  const lineHeight = 16;
+  let y = 110 + titleLines.length * 4;
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  bodyLines.forEach((line: string) => {
+    if (y > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.text(line, margin, y);
+    y += lineHeight;
+  });
+
+  const safeTitle = summary.title.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+  doc.save(`${safeTitle || "summary"}.pdf`);
+}
+
 export default function SubjectsPage() {
-  const [selected, setSelected] = useState(false);
   const [documents, setDocuments] = useState<SubjectDocument[]>([]);
 
   const handleFileUpload = (file: File) => {
-    // TODO: Datei tatsächlich hochladen (z.B. an app/api/upload), dort Text
-    // extrahieren und als Document-Eintrag in der Datenbank speichern.
     setDocuments((prev) => [
       ...prev,
-      { id: `${Date.now()}`, name: file.name, uploadedLabel: "just now" },
+      {
+        id: `${Date.now()}`,
+        name: file.name,
+        uploadedLabel: "just now",
+        file,
+      },
     ]);
   };
 
   const handleRemove = (id: string) => {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleGenerateSummary = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc) return;
+
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, isSummarizing: true, summaryError: undefined } : d
+      )
+    );
+
+    try {
+      const formData = new FormData();
+      formData.append("file", doc.file);
+
+      const response = await fetch("/api/summary/summaryCreate", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Zusammenfassung fehlgeschlagen");
+      }
+
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                isSummarizing: false,
+                summary: { title: data.title, summary: data.summary },
+              }
+            : d
+        )
+      );
+    } catch (err) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                isSummarizing: false,
+                summaryError:
+                  err instanceof Error ? err.message : "Unbekannter Fehler",
+              }
+            : d
+        )
+      );
+    }
   };
 
   return (
@@ -51,14 +162,7 @@ export default function SubjectsPage() {
       </h1>
 
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-        <button
-          onClick={() => setSelected(true)}
-          className={`overflow-hidden rounded-xl border bg-panel text-left transition-colors ${
-            selected
-              ? "border-accent"
-              : "border-panel-border hover:border-[var(--overlay-strong)]"
-          }`}
-        >
+        <div className="overflow-hidden rounded-xl border border-panel-border bg-panel">
           <div className="h-20 w-full bg-gradient-to-br from-rose via-rose-500 to-[#2a1030]" />
           <div className="p-3">
             <p className="text-[13.5px] capitalize text-foreground">
@@ -68,72 +172,112 @@ export default function SubjectsPage() {
               {documents.length} documents
             </p>
           </div>
-        </button>
+        </div>
 
         <AddCourseCard />
       </div>
 
-      {selected && (
-        <>
-          <section className="mb-8">
-            <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
-              Upload material for <span className="capitalize">{SUBJECT_NAME}</span>
-            </h2>
-            <label className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed border-panel-border bg-panel px-6 py-10 text-center transition-colors hover:border-accent">
-              <Upload size={22} className="text-accent" />
-              <span className="text-[13.5px] text-[var(--text-secondary)]">
-                Click to upload a document or lecture
-              </span>
-              <span className="text-[11px] text-muted">PDF, DOCX, TXT</span>
-              <input
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
-                }}
-              />
-            </label>
-          </section>
+      <section className="mb-8">
+        <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
+          Upload material for <span className="capitalize">{SUBJECT_NAME}</span>
+        </h2>
+        <label className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed border-panel-border bg-panel px-6 py-10 text-center transition-colors hover:border-accent">
+          <Upload size={22} className="text-accent" />
+          <span className="text-[13.5px] text-[var(--text-secondary)]">
+            Click to upload a document or lecture
+          </span>
+          <span className="text-[11px] text-muted">PDF, DOCX, TXT</span>
+          <input
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileUpload(file);
+            }}
+          />
+        </label>
+      </section>
 
-          <section>
-            <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
-              Documents
-            </h2>
-            {documents.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
-                <p className="text-[13px] text-muted">
-                  No documents yet &ndash; upload one above to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="group flex items-center gap-2.5 rounded-lg border border-panel-border bg-panel px-3 py-2.5"
+      <section>
+        <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
+          Documents
+        </h2>
+        {documents.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
+            <p className="text-[13px] text-muted">
+              No documents yet &ndash; upload one above to get started.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="rounded-lg border border-panel-border bg-panel"
+              >
+                <div className="group flex items-center gap-2.5 px-3 py-2.5">
+                  <FileIconLucide size={15} className="shrink-0 text-accent" />
+                  <span className="flex-1 truncate text-[13.5px] text-[var(--text-secondary)]">
+                    {doc.name}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-muted">
+                    {doc.uploadedLabel}
+                  </span>
+
+                  <button
+                    onClick={() => handleGenerateSummary(doc.id)}
+                    disabled={doc.isSummarizing}
+                    className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
                   >
-                    <FileIconLucide size={15} className="shrink-0 text-accent" />
-                    <span className="flex-1 truncate text-[13.5px] text-[var(--text-secondary)]">
-                      {doc.name}
-                    </span>
-                    <span className="shrink-0 text-[11px] text-muted">
-                      {doc.uploadedLabel}
-                    </span>
-                    <button
-                      onClick={() => handleRemove(doc.id)}
-                      className="shrink-0 rounded p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100"
-                      aria-label="Remove document"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {doc.isSummarizing ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={13} />
+                    )}
+                    {doc.isSummarizing ? "Generating…" : "Summarize"}
+                  </button>
+
+                  <button
+                    onClick={() => handleRemove(doc.id)}
+                    className="shrink-0 rounded p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100"
+                    aria-label="Remove document"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+
+                {doc.summaryError && (
+                  <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">
+                    {doc.summaryError}
+                  </p>
+                )}
+
+                {doc.summary && (
+                  <div className="border-t border-panel-border px-3 py-3">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="text-[13px] font-medium text-foreground">
+                        {doc.summary.title}
+                      </p>
+                      <button
+                        onClick={() =>
+                          downloadSummaryAsPdf(doc.summary!, doc.name)
+                        }
+                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                      >
+                        <FileDown size={13} />
+                        PDF
+                      </button>
+                    </div>
+                    <p className="text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+                      {doc.summary.summary}
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </section>
-        </>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
     </>
   );
 }

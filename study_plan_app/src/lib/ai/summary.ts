@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
-import { type AiReplySummary } from "@/src/types/summary";
-import { promptSummary } from "@/src/utils/prompts";
+import { type AiReplySummary } from "@/types/summary";
+import { promptSummary } from "@/utils/prompts";
 
 const ai = new GoogleGenAI({});
 

@@ -1,5 +1,5 @@
 import { createSummary } from "../../../../lib/ai/summary";
-import { saveSummary } from "@/src/lib/db/summary";
+import { saveSummary } from "@/lib/db/summary";
 
 export async function POST (request: Request){
     try{
