@@ -8,6 +8,8 @@ import {
   Sparkles,
   Loader2,
   FileDown,
+  Copy,
+  Check,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -51,20 +53,17 @@ function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) 
   const margin = 48;
   const maxWidth = pageWidth - margin * 2;
 
-  // Titel
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   const titleLines = doc.splitTextToSize(summary.title, maxWidth);
   doc.text(titleLines, margin, 64);
 
-  // Quelle (Dateiname), klein und gedämpft
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(120);
   doc.text(`Source: ${sourceFileName}`, margin, 84 + titleLines.length * 4);
   doc.setTextColor(0);
 
-  // Fließtext, mit automatischem Zeilenumbruch UND Seitenumbruch
   doc.setFontSize(11);
   const bodyLines = doc.splitTextToSize(summary.summary, maxWidth);
   const lineHeight = 16;
@@ -86,6 +85,7 @@ function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) 
 
 export default function SubjectsPage() {
   const [documents, setDocuments] = useState<SubjectDocument[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleFileUpload = (file: File) => {
     setDocuments((prev) => [
@@ -101,6 +101,16 @@ export default function SubjectsPage() {
 
   const handleRemove = (id: string) => {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleCopy = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 1500);
+    } catch {
+      // TODO: Fallback für Browser ohne Clipboard-API, falls relevant.
+    }
   };
 
   const handleGenerateSummary = async (id: string) => {
@@ -254,23 +264,43 @@ export default function SubjectsPage() {
 
                 {doc.summary && (
                   <div className="border-t border-panel-border px-3 py-3">
-                    <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="mb-2 flex items-center justify-between gap-2">
                       <p className="text-[13px] font-medium text-foreground">
                         {doc.summary.title}
                       </p>
-                      <button
-                        onClick={() =>
-                          downloadSummaryAsPdf(doc.summary!, doc.name)
-                        }
-                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
-                      >
-                        <FileDown size={13} />
-                        PDF
-                      </button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          onClick={() =>
+                            handleCopy(doc.id, doc.summary!.summary)
+                          }
+                          className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                        >
+                          {copiedId === doc.id ? (
+                            <Check size={13} />
+                          ) : (
+                            <Copy size={13} />
+                          )}
+                          {copiedId === doc.id ? "Copied" : "Copy"}
+                        </button>
+                        <button
+                          onClick={() =>
+                            downloadSummaryAsPdf(doc.summary!, doc.name)
+                          }
+                          className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                        >
+                          <FileDown size={13} />
+                          PDF
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
-                      {doc.summary.summary}
-                    </p>
+
+                    <textarea
+                      readOnly
+                      value={doc.summary.summary}
+                      rows={8}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="w-full resize-y rounded-md border border-panel-border bg-[var(--sunken)] p-2.5 font-mono text-[11.5px] leading-relaxed text-[var(--text-secondary)] focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
                   </div>
                 )}
               </div>
