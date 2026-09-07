@@ -50,7 +50,7 @@ export async function POST (uploadId: number){
           return Response.json({
             title: responseAI.content.title,
             summary: responseAI.content.summary,
-            topicIndex: responseAI.content.topicIndex //
+            topicIndex: responseAI.content.topicIndex 
             });
         }
 

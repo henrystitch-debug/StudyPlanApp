@@ -19,7 +19,7 @@ export async function createSummaryAndTopicIndex(file: File): Promise<SummaryRes
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    contents = [
+    contents = [ //TODO: Prompt anpassen zu dem mit topic index
       { text: promptSummary },
       { inlineData: { mimeType: file.type, data: base64Data } },
     ];
