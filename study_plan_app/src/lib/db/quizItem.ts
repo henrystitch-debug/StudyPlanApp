@@ -1,3 +1,6 @@
+import { QuizItemsQA } from "@/src/types/quizItem";
+import { QuizItemsMCQ } from "@/src/types/quizItem";
+
 export async function getQuizItemById(uploadId: number, quiztype: string, quizItemId: number){
 
     //TODO: fetch flashcard from db
@@ -10,7 +13,7 @@ export async function getQuizItemsOfCourse(courseId: number, type: string){
     return {};
 }
 
-export async function saveQuizItems(quiztype: string, quizname: string, quiz_items: []){
+export async function saveQuizItems(flashcards: QuizItemsQA, mcq: QuizItemsMCQ, freeText: QuizItemsQA){
 
     //TODO: save all quizitem to db
     return {};
