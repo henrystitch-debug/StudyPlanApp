@@ -85,6 +85,15 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* sidebar nav scrolls via the chevron button, so hide the native scrollbar */
+.sidebar-nav {
+  scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 /* reusable hover-glow: add this class to any card, button, or list
    item you want to "light up" on hover */
 .hover-glow {
