@@ -1,13 +1,42 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/hooks/useAuth";
+
+const NO_SHELL_PATHS = ["/login"];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { isAuthed } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const isPublic = NO_SHELL_PATHS.includes(pathname);
+
+  useEffect(() => setMounted(true), []);
+
+  // Login is the first page: send signed-out visitors there. Wait for the
+  // client to mount so localStorage has been read before deciding.
+  useEffect(() => {
+    if (mounted && !isAuthed && !isPublic) {
+      router.replace("/login");
+    }
+  }, [mounted, isAuthed, isPublic, router]);
+
+  if (isPublic) {
+    return <>{children}</>;
+  }
+
+  // Before mount, or while redirecting a signed-out visitor, render nothing.
+  if (!mounted || !isAuthed) {
+    return null;
+  }
 
   return (
     <div className="flex h-full min-h-screen w-full bg-background font-sans">
