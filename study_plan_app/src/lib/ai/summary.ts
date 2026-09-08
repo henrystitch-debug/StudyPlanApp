@@ -4,6 +4,7 @@ import { promptSummary } from "@/src/utils/prompts";
 import { withRetry } from "@/src/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
 
+//TODO: WARUM WIRD KEIN API KEY BENUTZT?
 const ai = new GoogleGenAI({});
 
 export async function createSummaryAndTopicIndex(file: File): Promise<SummaryResult>{
