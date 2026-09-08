@@ -2,13 +2,13 @@
 
 import { ChevronRight } from "lucide-react";
 
-export function SubjectsWidget() {
+export function CoursesWidget() {
   return (
     <div className="col-span-full">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[20px] font-semibold text-foreground font-serif">Your Subjects</h3>
+        <h3 className="text-[20px] font-semibold text-foreground font-serif">Your Courses</h3>
         <button className="flex items-center gap-1 text-[13.5px] text-muted hover:text-[var(--text-secondary)]">
-          All Subjects <ChevronRight size={13} />
+          All Courses <ChevronRight size={13} />
         </button>
       </div>
 

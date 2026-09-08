@@ -16,7 +16,9 @@ export async function saveUpload(file: File){
     },
   });
 
- return {success: true};
+ // NEU: uploadId ergänzt (Dummy: aktueller Timestamp), da das Frontend sie braucht,
+ // um anschließend /api/summary/summaryCreate mit diesem Upload aufzurufen.
+ return {success: true, uploadId: Date.now()};
 }
 
 export async function getUploadsByCourseId(courseId: number){

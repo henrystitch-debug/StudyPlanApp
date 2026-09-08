@@ -1,4 +1,4 @@
-import { getStudyplanById } from "@/src/lib/db/studyplan";
+import { getStudyplanById } from "@/lib/db/studyplan";
 
 // GEÄNDERT: statt "courseId: number" nimmt der Handler jetzt ein Request-Objekt
 // entgegen. Next.js ruft GET-Route-Handler immer mit (request: Request) auf,

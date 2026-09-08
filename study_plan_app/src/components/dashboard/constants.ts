@@ -8,7 +8,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Flashcards", icon: BookOpen, href: "/study" },
   { label: "Streak", icon: Flame, href: "/streak" },
   { label: "Calendar", icon: CalendarDays, href: "/calendar" },
-  { label: "Subjects", icon: ClipboardList, href: "/subjects" },
+  { label: "Courses", icon: ClipboardList, href: "/courses" },
   { label: "Analytics", icon: BarChart2, href: "#" },
 ];
 
@@ -33,4 +33,4 @@ export const INITIAL_COURSE_PLANS: CoursePlan[] = [
   },
 ];
 
-export const DEFAULT_WIDGET_IDS = ["focus", "subjects", "todo", "review", "week", "analytics"];
+export const DEFAULT_WIDGET_IDS = ["focus", "courses", "todo", "review", "week", "analytics"];

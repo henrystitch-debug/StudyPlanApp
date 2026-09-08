@@ -1,4 +1,4 @@
-import { getQuizItemById } from "@/src/lib/db/quizItem";
+import { getQuizItemById } from "@/lib/db/quizItem";
 
 // GEÄNDERT: statt "uploadid, quizType, quizItemId" als Parameter nimmt der Handler
 // jetzt ein Request-Objekt entgegen. Next.js ruft GET-Route-Handler immer mit

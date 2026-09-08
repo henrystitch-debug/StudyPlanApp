@@ -33,7 +33,7 @@ export function AnalyticsWidget() {
         {coursePlans.length === 0 && (
           <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
             <p className="text-[14px] leading-5 text-muted">
-              No courses yet &ndash; add a subject to see progress.
+              No courses yet &ndash; add a course to see progress.
             </p>
           </div>
         )}

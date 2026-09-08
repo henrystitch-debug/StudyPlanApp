@@ -1,4 +1,4 @@
-import { getTodaysEventsByUserId } from "@/src/lib/db/calendar";
+import { getTodaysEventsByUserId } from "@/lib/db/calendar";
 
 // GEÄNDERT: statt "id: number" nimmt der Handler jetzt ein Request-Objekt entgegen.
 // Next.js ruft GET-Route-Handler immer mit (request: Request) auf, nie mit eigenen

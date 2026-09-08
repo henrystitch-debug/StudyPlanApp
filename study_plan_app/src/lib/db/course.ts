@@ -1,7 +1,7 @@
 export async function getAllCoursesOfUser(uid : number) {
  //TODO: implement db call 
 
- return ["a", "b", "c"];
+ return ["economics"];
 }
 
 export async function getCourseInfo(uid : number, courseId: number) {

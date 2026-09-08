@@ -1,5 +1,5 @@
-import { createStudyplan } from "@/src/lib/ai/studyplan";
-import { saveStudyplan } from "@/src/lib/db/studyplan";
+import { createStudyplan } from "@/lib/ai/studyplan";
+import { saveStudyplan } from "@/lib/db/studyplan";
 
 export async function POST (request: Request){
     try{

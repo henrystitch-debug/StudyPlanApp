@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
-import { summaryAndTopicIndexResponseSchema, type SummaryResult } from "@/src/types/summary";
-import { promptSummary } from "@/src/utils/prompts";
-import { withRetry } from "@/src/utils/retryApiCall";
+import { summaryAndTopicIndexResponseSchema, type SummaryResult } from "@/types/summary";
+import { promptSummary } from "@/utils/prompts";
+import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
 
 const ai = new GoogleGenAI({});

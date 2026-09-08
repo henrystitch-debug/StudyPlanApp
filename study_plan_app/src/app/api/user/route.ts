@@ -1,4 +1,4 @@
-import { getUserById } from "@/src/lib/db/user";
+import { getUserById } from "@/lib/db/user";
 
 // GEÄNDERT: statt "uid: number" nimmt der Handler jetzt ein Request-Objekt entgegen.
 // Next.js ruft GET-Route-Handler immer mit (request: Request) auf, nie mit eigenen

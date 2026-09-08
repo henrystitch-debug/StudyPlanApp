@@ -1,10 +1,20 @@
 
-import { createQuiz } from "@/src/lib/ai/quiz";
-import { saveQuizItems } from "@/src/lib/db/quizItem";
-import { getUploadById } from "@/src/lib/db/upload";
+import { createQuiz } from "@/lib/ai/quiz";
+import { saveQuizItems } from "@/lib/db/quizItem";
+import { getUploadById } from "@/lib/db/upload";
 
-export async function POST (uploadId: number){
+// GEÄNDERT: statt "uploadId: number" nimmt der Handler jetzt ein Request-Objekt
+// entgegen. Next.js ruft POST-Route-Handler immer mit (request: Request) auf,
+// nie mit eigenen Parametern - "uploadId" war vorher zur Laufzeit immer undefined.
+export async function POST (request: Request){
     try{
+        // NEU: uploadId wird aus dem JSON-Body gelesen, z.B. { "uploadId": 1 }
+        const body = await request.json();
+        const uploadId = Number(body.uploadId);
+
+        if (!uploadId || Number.isNaN(uploadId)) {
+            return Response.json({ error: "uploadId is required" }, { status: 400 });
+        }
 
         const upload = await getUploadById(uploadId);
         

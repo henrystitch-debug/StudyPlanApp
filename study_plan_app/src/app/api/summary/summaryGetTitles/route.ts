@@ -1,4 +1,4 @@
-import { getAllSummaryTitles } from "@/src/lib/db/summary";
+import { getAllSummaryTitles } from "@/lib/db/summary";
 
 
 // Signatur unverändert (kein Query-Parameter nötig), aber:

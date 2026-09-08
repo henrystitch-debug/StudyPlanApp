@@ -1,4 +1,4 @@
-import { getTodaysMessage } from "@/src/lib/db/message";
+import { getTodaysMessage } from "@/lib/db/message";
 
 // GEÄNDERT: statt "uid: number" nimmt der Handler jetzt ein Request-Objekt entgegen.
 // Next.js ruft GET-Route-Handler immer mit (request: Request) auf, nie mit eigenen
