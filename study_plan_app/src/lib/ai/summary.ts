@@ -1,10 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
-import { type AiReplySummary } from "@/src/types/summary";
+import { summaryAndTopicIndexResponseSchema, type SummaryResult } from "@/src/types/summary";
 import { promptSummary } from "@/src/utils/prompts";
+import { withRetry } from "@/src/utils/retryApiCall";
+import { GEMINI_MODEL } from "./config";
 
 const ai = new GoogleGenAI({});
 
-export async function createSummary(file: File): Promise<AiReplySummary>{
+export async function createSummaryAndTopicIndex(file: File): Promise<SummaryResult>{
   const isTextFile =
     file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md");
 
@@ -17,45 +19,30 @@ export async function createSummary(file: File): Promise<AiReplySummary>{
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    contents = [
+    contents = [ //TODO: Prompt anpassen zu dem mit topic index
       { text: promptSummary },
       { inlineData: { mimeType: file.type, data: base64Data } },
     ];
   }
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.6-flash",
+  const response = await withRetry(() =>
+   ai.models.generateContent({
+    model: GEMINI_MODEL,
     contents,
     config: {
     responseMimeType: "application/json",
-    responseSchema: {
-      type: "object",
-      properties: {
-        title: {
-          type: "string",
-        },
-        summary: {
-          type: "string",
-        },
-      },
-      required: ["title", "summary"],
-    },
+    responseSchema: summaryAndTopicIndexResponseSchema
   },
-  });
+  }));
 
   if(response.text == undefined || !response.text){
     return {
-    title: "",
-    summary: ""
+    success: false, error: "No summary received"
   }
-  }
-
-  const sumAndTitle = JSON.parse(response.text)
-  const ti : string = sumAndTitle.title;
-  const sum : string = sumAndTitle.summary;
+}
+  const sumTitleIndex = JSON.parse(response.text)
 
   return {
-    title: ti,
-    summary: sum
+    success: true, content: {title: sumTitleIndex.title, summary: sumTitleIndex.summary, topicIndex: sumTitleIndex.topicIndex}
   }
 }

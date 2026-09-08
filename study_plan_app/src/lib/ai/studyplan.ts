@@ -1,29 +1,59 @@
-// create studyplan from AI
+import { GoogleGenAI } from "@google/genai";
+import { Calender, CalenderItem } from "@/src/types/calender";
+import { TopicIndices } from "@/src/types/topicIndex";
+import { aiStudyplanResponse, studyplanResponseSchema } from "@/src/types/studyplan";
+import { promptStudyplan } from "@/src/utils/prompts";
+import { StudyplanResult } from "@/src/types/studyplan";
+import { withRetry } from "@/src/utils/retryApiCall";
+import { GEMINI_MODEL } from "./config";
 
-export async function createStudyplan(uploads : File){
+const ai = new GoogleGenAI({});
 
-     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', { //TODO: durch tatsächliche AI ersetzen
-                        method: 'POST',
-                        headers: {
-                        Authorization: 'Bearer ' + process.env.OPEN_ROUTER_AI_KEY,
-                        'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            "model": "openrouter/auto-beta",
-                            "messages": [
-                            {
-                                "role": "user",
-                                "content": "Create a studyplan for this content: " + uploads
-                            } //TODO: was für ein Prompt? Was returnt es? 
-                        ]
-                                }),
-                            });
-    
-        const data = await response.json();
-        const replyAI =  data.choices?.[0]?.message?.content ?? JSON.stringify(data); 
+export async function createStudyplan(startDate: Date, endDate: Date, calendarEvents: Calender, topicIndeces: TopicIndices, capacity: number): Promise<StudyplanResult>{
 
+    const calenderJustInfo = calendarEvents.map((event: CalenderItem) => ({
+                date: event.date,
+                title: event.title, 
+                startTime: event.startTime,
+                endTime: event.endTime
+            }));
 
+      const userPrompt = `  Start date: ${startDate}
+                            End date: ${endDate}
+
+                            Existing calendar entries in this period (do NOT schedule over these):
+                            ${JSON.stringify(calenderJustInfo, null, 2)}
+
+                            Topics to cover (from the student's uploaded materials):
+                            ${JSON.stringify(topicIndeces, null, 2)}
+
+                            Available study capacity: ${capacity} hours per week.
+
+                            Generate a full study plan covering all topics above within the given date range.`;
+
+     const response = await withRetry(() =>
+      ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [{ text: userPrompt }],
+        config: {
+        systemInstruction: promptStudyplan,
+        responseMimeType: "application/json",
+        responseSchema: studyplanResponseSchema,
+        },
+    }));
+
+    if(!response.text){
         return {
-            studyplan: replyAI.studyplan
-        };
+            success: false, error: "No studyplan received from API"
+        }
+    }
+
+    const parsed = aiStudyplanResponse.parse(JSON.parse(response.text));
+
+    const fullItems = parsed.map((item) => ({
+        ...item,
+        isCompleted: false,
+    }));
+
+    return {success: true, studyplan: fullItems};
 }
