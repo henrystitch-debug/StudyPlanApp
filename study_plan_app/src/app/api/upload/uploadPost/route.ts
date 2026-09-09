@@ -4,6 +4,7 @@ export async function POST (request: Request){
     try{
         const formData = await request.formData(); 
         const file = formData.get("file") as File | null;
+        const courseId = formData.get("courseId");
 
         if(!file){
             return Response.json(
@@ -11,8 +12,14 @@ export async function POST (request: Request){
             {status: 400}
          )
         }
+        if(!courseId){
+            return Response.json(
+            {error: "File not found"},
+            {status: 400}
+         )
+        }
 
-        const responseDb = await saveUpload(file);
+        const responseDb = await saveUpload(+courseId, file);
 
         if(!responseDb){
             return Response.json(

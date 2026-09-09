@@ -7,7 +7,7 @@ export async function getUserById(userId: number){
     
   const result = await pool.query(
     `SELECT *
-     FROM user
+     FROM app_user
      WHERE user_id = $1`,
     [userId]
   );
@@ -20,7 +20,7 @@ export async function getUserById(userId: number){
 export async function saveUser(email: string, password: string){
     
   const result = await pool.query(
-    'INSERT INTO user (user_id, e_mail, password_hash, streak) VALUES (DEFAULT, $1, $2, 0) RETURNING *',
+    'INSERT INTO app_user (user_id, e_mail, password_hash, streak) VALUES (DEFAULT, $1, $2, 0) RETURNING *',
     [email, password]
   );
   return result.rows[0] ?? null;
@@ -32,7 +32,7 @@ export async function saveUser(email: string, password: string){
 export async function updateUser(userId: number, name: string, streak: number){
 
  const result = await pool.query(
-    `UPDATE user
+    `UPDATE app_user
      SET name = $1,
      streak = $2
      WHERE user_id = $3
@@ -48,7 +48,7 @@ export async function updateUser(userId: number, name: string, streak: number){
 export async function changePassword(userId: number, password: string){
 
  const result = await pool.query(
-    `UPDATE user
+    `UPDATE app_user
      SET password = $1,
      WHERE user_id = $2
      RETURNING *`,
@@ -63,7 +63,7 @@ export async function changePassword(userId: number, password: string){
 //================================================
 export async function deleteUser(userId: number) {
   const result = await pool.query(
-    'DELETE FROM user WHERE user_id = $1 RETURNING user_id',
+    'DELETE FROM app_user WHERE user_id = $1 RETURNING user_id',
     [userId]
   );
   if(!result.rowCount){ return null}
