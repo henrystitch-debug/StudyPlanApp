@@ -1,15 +1,21 @@
-import { getTopicIndex } from "@/src/lib/db/topicIndex";
+import { getTopicIndex } from "@/lib/db/topicIndex";
 
+export async function GET(request: Request) {
 
-export async function GET (uploadId: number){
+    const { searchParams } = new URL(request.url);
+    const uploadId = Number(searchParams.get("uploadId"));
 
-    const dbResponse = getTopicIndex(uploadId);
+    if (!uploadId || Number.isNaN(uploadId)) {
+        return Response.json({ error: "uploadId is required" }, { status: 400 });
+    }
 
-    if(!dbResponse){
-        return;
+    const dbResponse = await getTopicIndex(uploadId);
+
+    if (!dbResponse) {
+        return Response.json({ error: "No topic index found" }, { status: 404 });
     }
 
     return Response.json(
-        {topicIndex: dbResponse}
-    )
+        { topicIndex: dbResponse }
+    );
 }

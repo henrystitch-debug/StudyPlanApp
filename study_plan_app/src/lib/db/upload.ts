@@ -16,7 +16,7 @@ export async function saveUpload(file: File){
     },
   });
 
- return {success: true};
+ return {success: true, uploadId: Date.now()};
 }
 
 export async function getUploadsByCourseId(courseId: number){

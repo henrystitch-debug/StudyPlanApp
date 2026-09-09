@@ -1,4 +1,4 @@
-import { saveUpload } from "@/src/lib/db/upload";
+import { saveUpload } from "@/lib/db/upload";
 
 export async function POST (request: Request){
     try{

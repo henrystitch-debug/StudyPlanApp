@@ -77,7 +77,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { label: "Today", icon: Sun, active: true },
   { label: "Study", icon: BookOpen },
-  { label: "Subjects", icon: Layers },
+  { label: "Courses", icon: Layers },
   { label: "Streak", icon: Flame },
   { label: "Calendar", icon: CalendarDays },
   { label: "Study Plan", icon: ClipboardList },
@@ -140,7 +140,7 @@ export function Sidebar({
         </nav>
         <div className="mt-7 px-3">
           <p className="mb-2 text-[10.5px] font-medium uppercase tracking-wider text-muted">
-            Subjects
+            Courses
           </p>
           <div className="flex flex-col gap-0.5">
             <button className="flex items-center gap-2.5 rounded-lg px-0 py-1.5 text-left text-[13.5px] text-[var(--text-secondary)] hover:text-foreground">
@@ -149,7 +149,7 @@ export function Sidebar({
             </button>
             <button className="flex items-center gap-2.5 rounded-lg px-0 py-1.5 text-left text-[13.5px] text-muted hover:text-[var(--text-secondary)]">
               <Plus size={13} />
-              New subject
+              New course
             </button>
           </div>
         </div>

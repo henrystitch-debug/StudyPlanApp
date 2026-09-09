@@ -1,6 +1,6 @@
 import type { WidgetDef } from "./types";
 import { FocusCard } from "./FocusCard";
-import { SubjectsWidget } from "./SubjectsWidget";
+import { CoursesWidget } from "./CoursesWidget";
 import { TodoWidget } from "./TodoWidget";
 import { StudyPlanWidget } from "./StudyPlanWidget";
 import { AnalyticsWidget } from "./AnalyticsWidget";
@@ -16,11 +16,11 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     render: () => <FocusCard />,
   },
   {
-    id: "subjects",
-    label: "Your Subjects",
-    description: "Grid of the subjects you're studying.",
+    id: "courses",
+    label: "Your Courses",
+    description: "Grid of the courses you're studying.",
     span: "full",
-    render: () => <SubjectsWidget />,
+    render: () => <CoursesWidget />,
   },
   {
     id: "todo",

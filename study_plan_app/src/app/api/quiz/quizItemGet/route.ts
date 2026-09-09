@@ -1,15 +1,23 @@
-import { getQuizItemById } from "@/src/lib/db/quizItem";
+import { getQuizItemById } from "@/lib/db/quizItem";
 
+export async function GET(request: Request) {
 
-export async function GET (uploadid: number, quizType: string, quizItemId: number){
+    const { searchParams } = new URL(request.url);
+    const uploadid = Number(searchParams.get("uploadid"));
+    const quizType = searchParams.get("quizType");
+    const quizItemId = Number(searchParams.get("quizItemId"));
 
-    const dbResponse = getQuizItemById(uploadid, quizType, quizItemId);
+    if (!uploadid || Number.isNaN(uploadid) || !quizType || !quizItemId || Number.isNaN(quizItemId)) {
+        return Response.json({ error: "uploadid, quizType and quizItemId are required" }, { status: 400 });
+    }
 
-    if(!dbResponse){
-        return;
+    const dbResponse = await getQuizItemById(uploadid, quizType, quizItemId);
+
+    if (!dbResponse) {
+        return Response.json({ error: "Quiz item not found" }, { status: 404 });
     }
 
     return Response.json(
-        {quizItem: dbResponse}
-    )
+        { quizItem: dbResponse }
+    );
 }

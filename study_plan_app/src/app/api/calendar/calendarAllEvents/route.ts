@@ -1,14 +1,21 @@
-import { getAllEventsByUserId } from "@/src/lib/db/calendar";
+import { getAllEventsByUserId } from "@/lib/db/calendar";
 
-export async function GET (userId: number){
+export async function GET(request: Request) {
 
-    const dbResponse = getAllEventsByUserId(userId);
+    const { searchParams } = new URL(request.url);
+    const userId = Number(searchParams.get("userId"));
 
-    if(!dbResponse){
-        return;
+    if (!userId || Number.isNaN(userId)) {
+        return Response.json({ error: "userId is required" }, { status: 400 });
+    }
+
+    const dbResponse = await getAllEventsByUserId(userId);
+
+    if (!dbResponse) {
+        return Response.json({ error: "No events found" }, { status: 404 });
     }
 
     return Response.json(
-        {calenderEvents: dbResponse}
-    )
+        { calenderEvents: dbResponse }
+    );
 }

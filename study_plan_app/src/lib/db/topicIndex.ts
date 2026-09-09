@@ -1,4 +1,4 @@
-import { TopicIndex } from "@/src/types/topicIndex";
+import { TopicIndex } from "@/types/topicIndex";
 
 export async function getTopicIndex(uploadId: number){
 

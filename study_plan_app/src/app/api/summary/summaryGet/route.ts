@@ -1,16 +1,21 @@
-import { getSummaryById } from "@/src/lib/db/summary";
+import { getSummaryById } from "@/lib/db/summary";
 
+export async function GET(request: Request) {
 
-export async function GET (id: number){
+    const { searchParams } = new URL(request.url);
+    const summaryId = Number(searchParams.get("id"));
 
-    const summaryId = id;
-    const dbResponse = getSummaryById(summaryId);
+    if (!summaryId || Number.isNaN(summaryId)) {
+        return Response.json({ error: "id is required" }, { status: 400 });
+    }
 
-    if(!dbResponse){
-        return;
+    const dbResponse = await getSummaryById(summaryId);
+
+    if (!dbResponse) {
+        return Response.json({ error: "No summary found" }, { status: 404 });
     }
 
     return Response.json(
-        {summary: dbResponse}
-    )
+        { summary: dbResponse }
+    );
 }
