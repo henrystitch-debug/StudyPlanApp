@@ -1,4 +1,4 @@
-import { getTopicIndex } from "@/src/lib/db/topicIndex";
+import { getTopicIndex } from "@/src/lib/db/topicItem";
 
 
 export async function GET (uploadId: number){

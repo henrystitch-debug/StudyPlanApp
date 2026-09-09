@@ -1,5 +1,13 @@
-export async function getTodaysMessage(uid : number, date: string) {
- //TODO: implement db call 
+import { pool } from "./client";
 
- return "";
+// ===============================================
+// GET message
+//================================================
+export async function getSpecificMessage(title: string) {
+ 
+    const result = await pool.query(
+    'SELECT text FROM message WHERE message_name = $1',
+    [title]
+  );
+  return result.rows[0] ?? null;
 }

@@ -1,9 +1,8 @@
-import { getTodaysMessage } from "@/src/lib/db/message";
+import { getSpecificMessage } from "@/src/lib/db/message";
 
-export async function GET (uid: number){
+export async function GET (title: string){
 
-    const today = "";
-    const dbResponse = getTodaysMessage(uid, today);
+    const dbResponse = getSpecificMessage(title);
 
     if(!dbResponse){
         return;

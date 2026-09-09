@@ -1,22 +1,52 @@
-import { pool } from './db';
+import { pool } from './client';
 
-export async function getSummaryById(id: number){
+// ===============================================
+// GET summary
+//================================================
+export async function getSummaryById(uploadId: number){
 
-    //TODO: fetch summary from db
-    return "";
+    const result = await pool.query(
+    'SELECT * FROM summary WHERE upload_id = $1',
+    [uploadId]
+  );
+  return result.rows[0] ?? null;
 }
 
-export async function getAllSummaryTitles(){
-
-    //TODO: fetch summary titles from db
-    return ["", "", ""];
+// ===============================================
+// GET ALL summaries
+//================================================
+export async function getSummaryTitlesForCourse(courseId: number) {
+  const result = await pool.query(
+    `SELECT s.summary_id, s.upload_id, s.title
+     FROM summary s
+     JOIN upload u ON s.upload_id = u.upload_id
+     WHERE u.course_id = $1
+     ORDER BY s.creation_date DESC`,
+    [courseId]
+  );
+  return result.rows ?? null;
 }
 
+// ===============================================
+// SAVE SUMMARY
+//================================================
 export async function saveSummary(uploadId: number, title: string, summary: string){
 
     const result = await pool.query(
-    'INSERT INTO summary (id, uploadId, title, summary) VALUES (DEFAULT, $1, $2, $3, $4) RETURNING *',
+    'INSERT INTO summary (summary_id, upload_Id, title, summary) VALUES (DEFAULT, $1, $2, $3) RETURNING *',
     [uploadId, title, summary]
   );
-  return Response.json(result.rows[0]);
+  return result.rows[0] ?? null;
+}
+
+// ===============================================
+// DELETE summary
+//================================================
+export async function deleteSummary(sumId: number) {
+  const result = await pool.query(
+    'DELETE FROM summary WHERE summary_id = $1 RETURNING summary_id',
+    [sumId]
+  );
+  if(!result.rowCount){ return null}
+  return result.rowCount > 0;
 }

@@ -7,7 +7,8 @@ export const indexItem = z.object({
   effort: z.number()
 });
 
-export const topicIndex = z.object({
+export const topicIndex = z.array(indexItem);
+export const fullTopicIndex = z.object({
   uploadId: z.number(),
   items: z.array(indexItem),
 });
@@ -15,4 +16,5 @@ export const topicIndex = z.object({
 export const topicIndices = z.array(topicIndex);
 
 export type TopicIndex = z.infer<typeof topicIndex>
+export type FullTopicIndex = z.infer<typeof fullTopicIndex>
 export type TopicIndices = z.infer<typeof topicIndices>

@@ -1,4 +1,4 @@
-import { saveTopicIndex } from "@/src/lib/db/topicIndex";
+import { saveTopicIndex } from "@/src/lib/db/topicItem";
 import { createSummaryAndTopicIndex } from "../../../../lib/ai/summary";
 import { saveSummary } from "@/src/lib/db/summary";
 import { getUploadById } from "@/src/lib/db/upload";
@@ -35,12 +35,8 @@ export async function POST (uploadId: number){
             { status: 500})
         }
         
-        const fullTopicIndex = {
-            uploadId: -1,
-            items: responseAI.content.topicIndex
-        }
 
-        const responseDbTopicIndex = await saveTopicIndex(uploadId, fullTopicIndex);
+        const responseDbTopicIndex = await saveTopicIndex(uploadId, responseAI.content.topicIndex);
         if(!responseDbTopicIndex){
             return Response.json(
             { error: "Failed saving summary" },

@@ -3,8 +3,8 @@ import { z } from "zod";
 export const calenderItem = z.object({
 userId: z.number(),
 date: z.string(),
-startTime: z.string(),
-endTime: z.string(),
+startTime: z.string(), //HH:MM:SS
+endTime: z.string(),  //HH:MM:SS
 autoCreated: z.boolean(), //created by AI or User
 title: z.string(),
 })

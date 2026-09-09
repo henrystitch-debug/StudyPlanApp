@@ -14,7 +14,7 @@ export async function POST (request: Request){
             { status: 500})
           }
 
-          const responseDb = await saveStudyplan(body.courseId, responseAI.studyplan);
+          const responseDb = await saveStudyplan(body.userId, body.courseId, responseAI.studyplan);
 
           if(!responseDb){
             return Response.json(
