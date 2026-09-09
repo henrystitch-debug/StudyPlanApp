@@ -121,8 +121,6 @@ export default function CoursesPage() {
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // NEU: Kursliste über GET /api/course/coursesAll laden statt einer
-  // fest codierten Konstante.
   useEffect(() => {
     const fetchCourses = async () => {
       setIsLoadingCourses(true);
@@ -172,9 +170,6 @@ export default function CoursesPage() {
       },
     ]);
 
-    // NEU: Datei wird jetzt tatsächlich per POST /api/upload/uploadPost hochgeladen
-    // (vorher nur im lokalen State gehalten). Die zurückgegebene uploadId wird für
-    // den späteren Summary-Request gebraucht.
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -237,8 +232,6 @@ export default function CoursesPage() {
     );
 
     try {
-      // GEÄNDERT: summaryCreate erwartet jetzt die uploadId als JSON-Body statt
-      // der Datei selbst - der Server lädt die Datei serverseitig über diese Id.
       const response = await fetch("/api/summary/summaryCreate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -257,8 +250,6 @@ export default function CoursesPage() {
             ? {
                 ...d,
                 isSummarizing: false,
-                // NEU: topicIndex kommt bereits in der summaryCreate-Antwort mit
-                // (war vorher ungenutzt) und wird jetzt mit angezeigt.
                 summary: {
                   title: data.title,
                   summary: data.summary,
@@ -284,8 +275,6 @@ export default function CoursesPage() {
     }
   };
 
-  // NEU: analog zu handleGenerateSummary, ruft aber POST /api/quiz/quizCreate auf
-  // und erzeugt Flashcards, Multiple-Choice- und Freitext-Fragen aus dem Upload.
   const handleGenerateQuiz = async (id: string) => {
     const doc = documents.find((d) => d.id === id);
     if (!doc || !doc.uploadId) return;

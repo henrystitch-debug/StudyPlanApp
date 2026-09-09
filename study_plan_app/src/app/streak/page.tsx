@@ -48,7 +48,6 @@ export default function StreakPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // NEU: Streak-Daten über GET /api/streak laden statt hart codierter Konstanten.
   useEffect(() => {
     const fetchStreak = async () => {
       setIsLoading(true);

@@ -3,12 +3,8 @@ import { createSummaryAndTopicIndex } from "../../../../lib/ai/summary";
 import { saveSummary } from "@/lib/db/summary";
 import { getUploadById } from "@/lib/db/upload";
 
-// GEÄNDERT: statt "uploadId: number" nimmt der Handler jetzt ein Request-Objekt
-// entgegen. Next.js ruft POST-Route-Handler immer mit (request: Request) auf,
-// nie mit eigenen Parametern - "uploadId" war vorher zur Laufzeit immer undefined.
 export async function POST (request: Request){
     try{
-        // NEU: uploadId wird aus dem JSON-Body gelesen, z.B. { "uploadId": 1 }
         const body = await request.json();
         const uploadId = Number(body.uploadId);
 
@@ -44,7 +40,7 @@ export async function POST (request: Request){
             { error: "Failed saving summary" },
             { status: 500})
         }
-        
+
         const fullTopicIndex = {
             uploadId: -1,
             items: responseAI.content.topicIndex
@@ -60,7 +56,7 @@ export async function POST (request: Request){
           return Response.json({
             title: responseAI.content.title,
             summary: responseAI.content.summary,
-            topicIndex: responseAI.content.topicIndex 
+            topicIndex: responseAI.content.topicIndex
             });
         }
 

@@ -3,12 +3,8 @@ import { createQuiz } from "@/lib/ai/quiz";
 import { saveQuizItems } from "@/lib/db/quizItem";
 import { getUploadById } from "@/lib/db/upload";
 
-// GEÄNDERT: statt "uploadId: number" nimmt der Handler jetzt ein Request-Objekt
-// entgegen. Next.js ruft POST-Route-Handler immer mit (request: Request) auf,
-// nie mit eigenen Parametern - "uploadId" war vorher zur Laufzeit immer undefined.
 export async function POST (request: Request){
     try{
-        // NEU: uploadId wird aus dem JSON-Body gelesen, z.B. { "uploadId": 1 }
         const body = await request.json();
         const uploadId = Number(body.uploadId);
 
@@ -17,13 +13,13 @@ export async function POST (request: Request){
         }
 
         const upload = await getUploadById(uploadId);
-        
+
         if (!upload) {
         return Response.json({ error: "Upload not found" }, { status: 404 });
           }
-        
+
         const file = new File([upload.data.data], upload.data.filename, { type: upload.data.mimeType });
-        
+
         if(!file){
             return Response.json(
             {error: "File not found"},
