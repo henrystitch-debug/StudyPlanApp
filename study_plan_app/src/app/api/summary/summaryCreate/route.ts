@@ -1,24 +1,25 @@
-import { saveTopicIndex } from "@/lib/db/topicIndex";
+import { saveTopicIndex } from "@/lib/db/topicItem";
 import { createSummaryAndTopicIndex } from "../../../../lib/ai/summary";
 import { saveSummary } from "@/lib/db/summary";
 import { getUploadById } from "@/lib/db/upload";
 
 export async function POST (request: Request){
     try{
-        const body = await request.json();
-        const uploadId = Number(body.uploadId);
+        const formData = await request.formData(); 
+        const uploadIdForm = formData.get("uploadId");
 
-        if (!uploadId || Number.isNaN(uploadId)) {
+        if (!uploadIdForm || Number.isNaN(uploadIdForm)) {
             return Response.json({ error: "uploadId is required" }, { status: 400 });
         }
 
+        const uploadId = +uploadIdForm;
         const upload = await getUploadById(uploadId);
 
          if (!upload) {
         return Response.json({ error: "Upload not found" }, { status: 404 });
   }
-
-        const file = new File([upload.data.data], upload.data.filename, { type: upload.data.mimeType });
+        console.log('Buffer length:', upload.data.length, 'filename:', upload.file_name, 'mime:', upload.mime_type);
+        const file = new File([upload.data], upload.filename, { type: upload.mimeType });
 
         if(!file){
             return Response.json(
