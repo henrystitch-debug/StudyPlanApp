@@ -1,15 +1,36 @@
 "use client";
 
 import { Flame } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useBubblyFonts } from "@/hooks/useBubblyFonts";
 import { WidgetPicker } from "./WidgetPicker";
 import { WIDGET_REGISTRY } from "./WidgetRegistry";
 import { DEFAULT_WIDGET_IDS } from "./constants";
 
+// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
+const CURRENT_UID = 1;
+
 export function DashboardPage() {
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);
+  const [message, setMessage] = useState<string | null>(null);
   useBubblyFonts();
+
+  useEffect(() => {
+    const fetchMessage = async () => {
+      try {
+        const response = await fetch(`/api/message?uid=${CURRENT_UID}`);
+        const data = await response.json();
+
+        if (response.ok) {
+          setMessage(data.message);
+        }
+      } catch {
+        // Fällt unten auf den statischen Platzhalter zurück.
+      }
+    };
+
+    fetchMessage();
+  }, []);
 
   const toggleWidget = (id: string) => {
     setActiveWidgetIds((prev) => (prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]));
@@ -39,7 +60,7 @@ export function DashboardPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[32px] font-semibold tracking-tight text-foreground font-serif sm:text-[38px]">
-          Good evening, <span className="text-[var(--accent-strong)]">Manar</span>.
+          {message ?? "Good evening."}
         </h1>
         <WidgetPicker activeIds={activeWidgetIds} onToggle={toggleWidget} />
       </div>

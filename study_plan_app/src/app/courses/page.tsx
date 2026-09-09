@@ -9,6 +9,7 @@ import {
   Brain,
   Loader2,
   FileDown,
+  Download,
   Copy,
   Check,
 } from "lucide-react";
@@ -52,6 +53,8 @@ type CourseDocument = {
   quiz?: Quiz;
   isGeneratingQuiz?: boolean;
   quizError?: string;
+  isDownloading?: boolean;
+  downloadError?: string;
 };
 
 type Course = {
@@ -121,6 +124,15 @@ export default function CoursesPage() {
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const [summaryTitles, setSummaryTitles] = useState<{ id: number; title: string }[]>([]);
+  const [isLoadingSummaryTitles, setIsLoadingSummaryTitles] = useState(false);
+  const [summaryTitlesError, setSummaryTitlesError] = useState<string | null>(null);
+
+  const [openSummaryId, setOpenSummaryId] = useState<number | null>(null);
+  const [openSummaryText, setOpenSummaryText] = useState<string | null>(null);
+  const [isLoadingOpenSummary, setIsLoadingOpenSummary] = useState(false);
+  const [openSummaryError, setOpenSummaryError] = useState<string | null>(null);
+
   useEffect(() => {
     const fetchCourses = async () => {
       setIsLoadingCourses(true);
@@ -150,6 +162,70 @@ export default function CoursesPage() {
 
     fetchCourses();
   }, []);
+
+  // Lädt beim Auswählen eines Kurses die Titel bereits gespeicherter
+  // Zusammenfassungen (GET /api/summary/summaryGetTitles). Die Route selbst
+  // kennt aktuell keinen courseId-Filter - sie liefert immer alle Titel -
+  // das Nachladen wird hier trotzdem an die Kursauswahl gekoppelt.
+  useEffect(() => {
+    if (!selectedCourseId) return;
+
+    const fetchSummaryTitles = async () => {
+      setIsLoadingSummaryTitles(true);
+      setSummaryTitlesError(null);
+      setOpenSummaryId(null);
+      setOpenSummaryText(null);
+      try {
+        const response = await fetch("/api/summary/summaryGetTitles");
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Titel konnten nicht geladen werden");
+        }
+
+        // Dummy-Backend liefert nur Titel ohne Id (string[]), daher wird die Id
+        // hier vorübergehend aus dem Index gebildet - wie bei den Kursen oben.
+        const titles: { id: number; title: string }[] = (data.titles ?? []).map(
+          (title: string, index: number) => ({ id: index + 1, title })
+        );
+        setSummaryTitles(titles);
+      } catch (err) {
+        setSummaryTitlesError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      } finally {
+        setIsLoadingSummaryTitles(false);
+      }
+    };
+
+    fetchSummaryTitles();
+  }, [selectedCourseId]);
+
+  // Lädt die volle Zusammenfassung zu einem Titel per GET /api/summary/summaryGet.
+  const handleOpenSavedSummary = async (id: number) => {
+    if (openSummaryId === id) {
+      setOpenSummaryId(null);
+      setOpenSummaryText(null);
+      return;
+    }
+
+    setOpenSummaryId(id);
+    setOpenSummaryText(null);
+    setOpenSummaryError(null);
+    setIsLoadingOpenSummary(true);
+    try {
+      const response = await fetch(`/api/summary/summaryGet?id=${id}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Zusammenfassung konnte nicht geladen werden");
+      }
+
+      setOpenSummaryText(data.summary);
+    } catch (err) {
+      setOpenSummaryError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    } finally {
+      setIsLoadingOpenSummary(false);
+    }
+  };
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
   const visibleDocuments = documents.filter((d) => d.courseId === selectedCourseId);
@@ -328,6 +404,62 @@ export default function CoursesPage() {
     }
   };
 
+  // Holt die Originaldatei über GET /api/upload/uploadGetById und stößt einen
+  // Browser-Download an, statt nur die (im Frontend gehaltene) Kopie zu nutzen.
+  const handleDownloadOriginal = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc || !doc.uploadId) return;
+
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, isDownloading: true, downloadError: undefined } : d
+      )
+    );
+
+    try {
+      const response = await fetch(`/api/upload/uploadGetById?uploadId=${doc.uploadId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Download fehlgeschlagen");
+      }
+
+      const uploadData = data.upload?.data;
+      const filename = uploadData?.filename || doc.name;
+      const mimeType = uploadData?.mimeType || "application/octet-stream";
+      const rawBytes = uploadData?.data;
+
+      // Buffer wird über JSON als { type: "Buffer", data: number[] } serialisiert.
+      const blob =
+        rawBytes && typeof rawBytes === "object" && Array.isArray(rawBytes.data)
+          ? new Blob([new Uint8Array(rawBytes.data)], { type: mimeType })
+          : new Blob([rawBytes ?? ""], { type: mimeType });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, isDownloading: false } : d))
+      );
+    } catch (err) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                isDownloading: false,
+                downloadError: err instanceof Error ? err.message : "Unbekannter Fehler",
+              }
+            : d
+        )
+      );
+    }
+  };
+
   return (
     <>
       <h1 className="mb-6 text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
@@ -393,6 +525,50 @@ export default function CoursesPage() {
             </label>
           </section>
 
+          {(isLoadingSummaryTitles || summaryTitlesError || summaryTitles.length > 0) && (
+            <section className="mb-6">
+              <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
+                Saved Summaries
+              </h2>
+              {isLoadingSummaryTitles ? (
+                <p className="text-[13px] text-muted">Loading…</p>
+              ) : summaryTitlesError ? (
+                <p className="text-[13px] text-rose">{summaryTitlesError}</p>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {summaryTitles.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="rounded-lg border border-panel-border bg-panel"
+                    >
+                      <button
+                        onClick={() => handleOpenSavedSummary(entry.id)}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
+                      >
+                        <FileIconLucide size={15} className="shrink-0 text-accent" />
+                        <span className="flex-1 truncate">{entry.title || "Untitled"}</span>
+                      </button>
+
+                      {openSummaryId === entry.id && (
+                        <div className="border-t border-panel-border px-3 py-2.5">
+                          {isLoadingOpenSummary ? (
+                            <p className="text-[12.5px] text-muted">Loading…</p>
+                          ) : openSummaryError ? (
+                            <p className="text-[12.5px] text-rose">{openSummaryError}</p>
+                          ) : (
+                            <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+                              {openSummaryText}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           <section>
             <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
               Documents
@@ -446,6 +622,19 @@ export default function CoursesPage() {
                       </button>
 
                       <button
+                        onClick={() => handleDownloadOriginal(doc.id)}
+                        disabled={doc.isDownloading || doc.isUploading || !doc.uploadId}
+                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
+                      >
+                        {doc.isDownloading ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Download size={13} />
+                        )}
+                        {doc.isDownloading ? "Downloading…" : "Original"}
+                      </button>
+
+                      <button
                         onClick={() => handleRemove(doc.id)}
                         className="shrink-0 rounded p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100"
                         aria-label="Remove document"
@@ -469,6 +658,12 @@ export default function CoursesPage() {
                     {doc.quizError && (
                       <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">
                         {doc.quizError}
+                      </p>
+                    )}
+
+                    {doc.downloadError && (
+                      <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">
+                        {doc.downloadError}
                       </p>
                     )}
 

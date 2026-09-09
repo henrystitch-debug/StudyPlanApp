@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, ChevronUp, LogOut, Mail } from "lucide-react";
+import { ChevronDown, ChevronUp, LogOut, Mail, User } from "lucide-react";
 import { NAV_ITEMS } from "@/components/dashboard/constants";
 import { useAuth } from "@/hooks/useAuth";
+
+// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
+const CURRENT_UID = 1;
 
 type SidebarProps = {
   open: boolean;
@@ -16,6 +19,24 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { email, signOut } = useAuth();
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await fetch(`/api/user?uid=${CURRENT_UID}`);
+        const data = await response.json();
+
+        if (response.ok) {
+          setUserName(data.userInfo?.name ?? null);
+        }
+      } catch {
+        // Kein Fallback nötig - die Zeile wird dann einfach nicht angezeigt.
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   const navRef = useRef<HTMLElement>(null);
   const [overflowing, setOverflowing] = useState(false);
@@ -108,6 +129,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         )}
 
         <div className="border-t border-panel-border p-4">
+          {userName && (
+            <div className="mb-2 flex items-center gap-2.5 px-3 py-1 text-[13px] font-medium text-foreground">
+              <User size={15} className="shrink-0" />
+              <span className="truncate">{userName}</span>
+            </div>
+          )}
           {email && (
             <div className="mb-2 flex items-center gap-2.5 px-3 py-1 text-[12.5px] text-muted">
               <Mail size={15} className="shrink-0" />

@@ -1,7 +1,5 @@
 export async function getUserById(uid: number){
-    //TODO: create db call 
+    //TODO: create db call
 
-    return Response.json({
-        userInfo: {}
-    })
+    return { name: "Manar" };
 }
