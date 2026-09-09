@@ -1,12 +1,12 @@
-import { getAllSummaryTitles } from "@/src/lib/db/summary";
+import { getAllSummaryTitles } from "@/lib/db/summary";
 
 
 export async function GET (){
 
-    const dbResponse = getAllSummaryTitles();
+    const dbResponse = await getAllSummaryTitles();
 
     if(!dbResponse){
-        return;
+        return Response.json({ error: "No titles found" }, { status: 404 });
     }
 
     return Response.json(

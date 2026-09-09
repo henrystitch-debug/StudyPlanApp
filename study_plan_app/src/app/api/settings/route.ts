@@ -1,14 +1,21 @@
-import { getSettingsByUserId } from "@/src/lib/db/settings";
+import { getSettingsByUserId } from "@/lib/db/settings";
 
-export async function GET (uid: number){
+export async function GET(request: Request) {
 
-    const dbResponse = getSettingsByUserId(uid);
+    const { searchParams } = new URL(request.url);
+    const uid = Number(searchParams.get("uid"));
 
-    if(!dbResponse){
-        return;
+    if (!uid || Number.isNaN(uid)) {
+        return Response.json({ error: "uid is required" }, { status: 400 });
+    }
+
+    const dbResponse = await getSettingsByUserId(uid);
+
+    if (!dbResponse) {
+        return Response.json({ error: "No settings found" }, { status: 404 });
     }
 
     return Response.json(
-        {quizItem: dbResponse}
-    )
+        { quizItem: dbResponse }
+    );
 }

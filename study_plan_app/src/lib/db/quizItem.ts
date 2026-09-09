@@ -1,6 +1,6 @@
 import { pool } from "./client";
-import { QuizItemsQA } from "@/src/types/quizItem";
-import { QuizItemsMCQ } from "@/src/types/quizItem";
+import { QuizItemsQA } from "@/types/quizItem";
+import { QuizItemsMCQ } from "@/types/quizItem";
 
 // ===============================================
 // GET quizitem

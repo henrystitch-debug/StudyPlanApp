@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import {
-  Menu,
   Upload,
   FileText,
   Eye,
@@ -11,7 +10,6 @@ import {
   ArrowLeft,
   type LucideIcon,
 } from "lucide-react";
-import { useTheme, ThemeToggle, Sidebar } from "../shared_shell";
 
 type StudyMode = "visual" | "auditive" | "repetitive" | "combination";
 
@@ -23,30 +21,15 @@ type ModeDef = {
 };
 
 const MODES: ModeDef[] = [
-  {
-    id: "visual",
-    label: "Visual",
-    description: "Diagrams, graphs, models",
-    icon: Eye,
-  },
-  {
-    id: "auditive",
-    label: "Auditive",
-    description: "Listen and speak",
-    icon: Ear,
-  },
+  { id: "visual", label: "Visual", description: "Diagrams, graphs, models", icon: Eye },
+  { id: "auditive", label: "Auditive", description: "Listen and speak", icon: Ear },
   {
     id: "repetitive",
     label: "Repetitive",
     description: "Rewrite, flashcards, memory",
     icon: Repeat,
   },
-  {
-    id: "combination",
-    label: "Combination",
-    description: "All three",
-    icon: Layers,
-  },
+  { id: "combination", label: "Combination", description: "All three", icon: Layers },
 ];
 
 // Platzhalter-Fragen, bis die echte KI-Generierung angebunden ist
@@ -81,9 +64,7 @@ function ModeCard({
     >
       <span
         className={`flex h-9 w-9 items-center justify-center rounded-full ${
-          selected
-            ? "bg-accent text-accent-foreground"
-            : "bg-[var(--sunken)] text-muted"
+          selected ? "bg-accent text-accent-foreground" : "bg-[var(--sunken)] text-muted"
         }`}
       >
         <Icon size={16} />
@@ -91,9 +72,7 @@ function ModeCard({
       <span className="text-[15px] font-medium text-foreground font-serif">
         {mode.label}
       </span>
-      <span className="text-[12.5px] leading-snug text-muted">
-        {mode.description}
-      </span>
+      <span className="text-[12.5px] leading-snug text-muted">{mode.description}</span>
     </button>
   );
 }
@@ -133,8 +112,6 @@ function InputMethodStep({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) onFileChosen(file.name);
-                // TODO: Datei tatsächlich hochladen (z.B. an app/api/upload)
-                // und Text serverseitig extrahieren, statt nur den Namen zu zeigen.
               }}
             />
           </label>
@@ -144,9 +121,7 @@ function InputMethodStep({
             className="flex flex-1 flex-col items-center gap-3 rounded-2xl border border-panel-border bg-panel px-6 py-10 text-center transition-colors hover:bg-[var(--overlay)]"
           >
             <FileText size={22} className="text-accent" />
-            <span className="text-[13.5px] text-[var(--text-secondary)]">
-              Paste text
-            </span>
+            <span className="text-[13.5px] text-[var(--text-secondary)]">Paste text</span>
           </button>
         </div>
       ) : (
@@ -194,7 +169,6 @@ function SessionStep({
   const modeLabel = MODES.find((m) => m.id === mode)?.label ?? mode;
 
   const handleNext = () => {
-    // TODO: Antwort serverseitig bewerten (z.B. via KI), statt nur weiterzuschalten
     setAnswer("");
     setIndex((i) => Math.min(i + 1, total - 1));
   };
@@ -214,9 +188,7 @@ function SessionStep({
         </span>
       </div>
 
-      <p className="mb-1 text-[11px] uppercase tracking-wider text-muted">
-        {sourceLabel}
-      </p>
+      <p className="mb-1 text-[11px] uppercase tracking-wider text-muted">{sourceLabel}</p>
       <h2 className="mb-6 text-[19px] font-medium leading-snug text-foreground font-serif">
         {MOCK_QUESTIONS[index]}
       </h2>
@@ -252,8 +224,6 @@ function SessionStep({
 }
 
 export default function StudyPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const [step, setStep] = useState<Step>("select-mode");
   const [selectedMode, setSelectedMode] = useState<StudyMode | null>(null);
   const [sourceLabel, setSourceLabel] = useState("");
@@ -274,59 +244,41 @@ export default function StudyPage() {
   };
 
   return (
-    <div className="flex h-full min-h-screen w-full bg-background font-sans">
-      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 sm:px-8">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMenuOpen(true)}
-              className="rounded-md p-1.5 text-muted hover:bg-[var(--overlay)] md:hidden"
-              aria-label="Open menu"
-            >
-              <Menu size={20} />
-            </button>
+    <>
+      {step === "select-mode" && (
+        <>
+          <h1 className="mb-8 text-center text-[24px] font-medium tracking-tight text-foreground font-serif sm:text-[28px]">
+            Hello <span className="text-[var(--accent-strong)]">Manar</span>, how would
+            you like to study?
+          </h1>
+          <div className="mx-auto grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
+            {MODES.map((mode) => (
+              <ModeCard
+                key={mode.id}
+                mode={mode}
+                selected={selectedMode === mode.id}
+                onSelect={() => handleModeSelect(mode.id)}
+              />
+            ))}
           </div>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </header>
+        </>
+      )}
 
-        <main className="flex-1 px-4 pb-10 pt-6 sm:px-8">
-          {step === "select-mode" && (
-            <>
-              <h1 className="mb-8 text-center text-[24px] font-medium tracking-tight text-foreground font-serif sm:text-[28px]">
-                Hello <span className="text-[var(--accent-strong)]">Manar</span>,
-                how would you like to study?
-              </h1>
-              <div className="mx-auto grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
-                {MODES.map((mode) => (
-                  <ModeCard
-                    key={mode.id}
-                    mode={mode}
-                    selected={selectedMode === mode.id}
-                    onSelect={() => handleModeSelect(mode.id)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
+      {step === "input" && selectedMode && (
+        <InputMethodStep
+          onBack={() => setStep("select-mode")}
+          onFileChosen={handleFileChosen}
+          onTextPasted={handleTextPasted}
+        />
+      )}
 
-          {step === "input" && selectedMode && (
-            <InputMethodStep
-              onBack={() => setStep("select-mode")}
-              onFileChosen={handleFileChosen}
-              onTextPasted={handleTextPasted}
-            />
-          )}
-
-          {step === "session" && selectedMode && (
-            <SessionStep
-              mode={selectedMode}
-              sourceLabel={sourceLabel}
-              onExit={() => setStep("select-mode")}
-            />
-          )}
-        </main>
-      </div>
-    </div>
+      {step === "session" && selectedMode && (
+        <SessionStep
+          mode={selectedMode}
+          sourceLabel={sourceLabel}
+          onExit={() => setStep("select-mode")}
+        />
+      )}
+    </>
   );
 }

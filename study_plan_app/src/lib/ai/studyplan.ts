@@ -1,10 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
-import { Calender, CalenderItem } from "@/src/types/calender";
-import { TopicIndices } from "@/src/types/topicIndex";
-import { aiStudyplanResponse, studyplanResponseSchema } from "@/src/types/studyplan";
-import { promptStudyplan } from "@/src/utils/prompts";
-import { StudyplanResult } from "@/src/types/studyplan";
-import { withRetry } from "@/src/utils/retryApiCall";
+import { Calender, CalenderItem } from "@/types/calender";
+import { TopicIndices } from "@/types/topicIndex";
+import { aiStudyplanResponse, studyplanResponseSchema } from "@/types/studyplan";
+import { promptStudyplan } from "@/utils/prompts";
+import { StudyplanResult } from "@/types/studyplan";
+import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
 
 const ai = new GoogleGenAI({});

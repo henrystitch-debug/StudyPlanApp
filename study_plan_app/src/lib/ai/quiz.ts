@@ -1,8 +1,8 @@
 // create flashcards from AI
 import { GoogleGenAI } from "@google/genai";
-import { promptQuiz } from "@/src/utils/prompts";
-import { quizSchema, QuizResult } from "@/src/types/quizItem";
-import { withRetry } from "@/src/utils/retryApiCall";
+import { promptQuiz } from "@/utils/prompts";
+import { quizSchema, QuizResult } from "@/types/quizItem";
+import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
 
 const ai = new GoogleGenAI({});

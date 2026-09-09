@@ -1,19 +1,25 @@
 
-import { createQuiz } from "@/src/lib/ai/quiz";
-import { saveQuizItems } from "@/src/lib/db/quizItem";
-import { getUploadById } from "@/src/lib/db/upload";
+import { createQuiz } from "@/lib/ai/quiz";
+import { saveQuizItems } from "@/lib/db/quizItem";
+import { getUploadById } from "@/lib/db/upload";
 
-export async function POST (uploadId: number){
+export async function POST (request: Request){
     try{
+        const body = await request.json();
+        const uploadId = Number(body.uploadId);
+
+        if (!uploadId || Number.isNaN(uploadId)) {
+            return Response.json({ error: "uploadId is required" }, { status: 400 });
+        }
 
         const upload = await getUploadById(uploadId);
-        
+
         if (!upload) {
         return Response.json({ error: "Upload not found" }, { status: 404 });
           }
-        
+
         const file = new File([upload.data.data], upload.data.filename, { type: upload.data.mimeType });
-        
+
         if(!file){
             return Response.json(
             {error: "File not found"},

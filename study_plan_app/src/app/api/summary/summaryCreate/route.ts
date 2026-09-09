@@ -1,10 +1,16 @@
-import { saveTopicIndex } from "@/src/lib/db/topicItem";
+import { saveTopicIndex } from "@/lib/db/topicIndex";
 import { createSummaryAndTopicIndex } from "../../../../lib/ai/summary";
-import { saveSummary } from "@/src/lib/db/summary";
-import { getUploadById } from "@/src/lib/db/upload";
+import { saveSummary } from "@/lib/db/summary";
+import { getUploadById } from "@/lib/db/upload";
 
-export async function POST (uploadId: number){
+export async function POST (request: Request){
     try{
+        const body = await request.json();
+        const uploadId = Number(body.uploadId);
+
+        if (!uploadId || Number.isNaN(uploadId)) {
+            return Response.json({ error: "uploadId is required" }, { status: 400 });
+        }
 
         const upload = await getUploadById(uploadId);
 
@@ -35,7 +41,6 @@ export async function POST (uploadId: number){
             { status: 500})
         }
         
-
         const responseDbTopicIndex = await saveTopicIndex(uploadId, responseAI.content.topicIndex);
         if(!responseDbTopicIndex){
             return Response.json(
@@ -46,7 +51,7 @@ export async function POST (uploadId: number){
           return Response.json({
             title: responseAI.content.title,
             summary: responseAI.content.summary,
-            topicIndex: responseAI.content.topicIndex 
+            topicIndex: responseAI.content.topicIndex
             });
         }
 

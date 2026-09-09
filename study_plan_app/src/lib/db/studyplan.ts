@@ -1,5 +1,5 @@
 import { pool } from "./client";
-import { AiStudyplanResponse } from "@/src/types/studyplan";
+import { AiStudyplanResponse } from "@/types/studyplan";
 
 export async function getStudyplanById(courseId: number){
 

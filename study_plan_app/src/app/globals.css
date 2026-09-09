@@ -1,26 +1,105 @@
 @import "tailwindcss";
 
 :root {
+  /* base surfaces — dark navy (unchanged) */
+  --background: #0a0d1a;
+  --foreground: #ededf3;
+
+  --panel: #12162a;
+  --panel-border: rgba(255, 255, 255, 0.06);
+  --sidebar: #0c0f1d;
+
+  /* accent — amber (unchanged) */
+  --accent: #f6a934;
+  --accent-foreground: #1a1305;
+  --accent-strong: #fde68a;
+
+  --rose: #fb7185;
+  --muted: #7c8399;
+  --text-secondary: #cbd5e1;
+
+  --overlay: rgba(255, 255, 255, 0.04);
+  --overlay-strong: rgba(255, 255, 255, 0.08);
+  --sunken: rgba(0, 0, 0, 0.2);
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  --hero-from: #151a34;
+  --hero-to: #1a1030;
+  --hero-glow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --hover-glow: 0 0 0 1px rgba(246, 169, 52, 0.4), 0 4px 20px rgba(246, 169, 52, 0.25);
+}
+
+.light {
+  /* background back to white; blue now lives in sidebar/hero/sunken
+     surfaces instead, so it still contrasts against something */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #12142a;
+
+  --panel: #ffffff;
+  --panel-border: rgba(18, 20, 42, 0.10);
+  --sidebar: #dde3f7;
+
+  /* accent stays identical — the lamp is always on */
+  --accent: #f6a934;
+  --accent-foreground: #1a1305;
+  --accent-strong: #c2660c;
+
+  --rose: #e11d48;
+  --muted: #565a86;
+  --text-secondary: #2a2c52;
+
+  --overlay: rgba(18, 20, 70, 0.05);
+  --overlay-strong: rgba(18, 20, 70, 0.10);
+  --sunken: rgba(30, 40, 120, 0.10);
+  --scrim: rgba(20, 16, 10, 0.4);
+
+  /* hero card gradient — deep indigo into amber, with glow */
+  --hero-from: #aab8ec;
+  --hero-to: #ffc978;
+  --hero-glow: 0 8px 40px rgba(246, 169, 52, 0.45), 0 0 60px rgba(120, 140, 230, 0.3);
+
+  /* hover glow: cool blue ring + soft amber bleed */
+  --hover-glow: 0 0 0 1px rgba(120, 140, 230, 0.35), 0 4px 24px rgba(246, 169, 52, 0.3);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-border: var(--panel-border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-rose: var(--rose);
+  --color-muted: var(--muted);
+  --shadow-hero: var(--hero-glow);
+  --shadow-hover-glow: var(--hover-glow);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-serif: "Georgia", serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* sidebar nav scrolls via the chevron button, so hide the native scrollbar */
+.sidebar-nav {
+  scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* reusable hover-glow: add this class to any card, button, or list
+   item you want to "light up" on hover */
+.hover-glow {
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.hover-glow:hover {
+  box-shadow: var(--shadow-hover-glow);
+  transform: translateY(-1px);
 }
