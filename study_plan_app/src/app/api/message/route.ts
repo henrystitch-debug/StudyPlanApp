@@ -1,16 +1,15 @@
-import { getTodaysMessage } from "@/lib/db/message";
+import { getSpecificMessage } from "@/lib/db/message";
 
 export async function GET(request: Request) {
 
-    const { searchParams } = new URL(request.url);
-    const uid = Number(searchParams.get("uid"));
+    const formData = await request.formData(); 
+        const message = formData.get("message") as string;
 
-    if (!uid || Number.isNaN(uid)) {
-        return Response.json({ error: "uid is required" }, { status: 400 });
+    if (!message) {
+        return Response.json({ error: "message is required" }, { status: 400 });
     }
 
-    const today = "";
-    const dbResponse = await getTodaysMessage(uid, today);
+    const dbResponse = await getSpecificMessage(message);
 
     if (!dbResponse) {
         return Response.json({ error: "No message found" }, { status: 404 });

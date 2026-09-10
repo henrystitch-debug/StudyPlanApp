@@ -35,7 +35,7 @@ export async function POST (request: Request){
             { status: 500})
           }
 
-          const responseDb = await saveQuizItems(responseAI.quiz.flashcards, responseAI.quiz.mcq, responseAI.quiz.openText);
+          const responseDb = await saveQuizItems(uploadId, responseAI.quiz.flashcards, responseAI.quiz.mcq, responseAI.quiz.openText);
 
           return Response.json({
             flashcards: responseAI.quiz.flashcards,
