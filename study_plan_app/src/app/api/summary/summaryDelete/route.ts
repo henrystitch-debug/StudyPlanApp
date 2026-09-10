@@ -1,6 +1,6 @@
-import { getSummaryById } from "@/lib/db/summary";
+import { deleteSummary } from "@/lib/db/summary";
 
-export async function GET(request: Request) {
+export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const summaryId = Number(searchParams.get("id"));
@@ -9,19 +9,19 @@ export async function GET(request: Request) {
             return Response.json({ error: "id is required" }, { status: 400 });
         }
 
-        const dbResponse = await getSummaryById(summaryId);
+        const dbResponse = await deleteSummary(summaryId);
 
         if (!dbResponse) {
-            return Response.json({ error: "No summary found" }, { status: 404 });
+            return Response.json({ error: "Summary not found" }, { status: 404 });
         }
 
         return Response.json(
-            { summary: dbResponse }
+            { success: true }
         );
     } catch (err) {
         console.error(err);
         return Response.json(
-            { error: "Error while fetching summary" },
+            { error: "Error while deleting summary" },
             { status: 500 }
         );
     }

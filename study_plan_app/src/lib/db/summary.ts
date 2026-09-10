@@ -11,7 +11,6 @@ export async function getSummaryById(uploadId: number){
   );
   return result.rows[0] ?? null;
 }
-0
 
 // ===============================================
 // GET ALL summaries
@@ -33,8 +32,14 @@ export async function getSummaryTitlesForCourse(courseId: number) {
 //================================================
 export async function saveSummary(uploadId: number, title: string, summary: string){
 
+    // "summary" hat einen UNIQUE-Constraint auf upload_id - ohne Upsert würde
+    // ein erneuter Versuch (z.B. nochmal auf "Summarize" klicken) für ein bereits
+    // zusammengefasstes Dokument mit einem Duplicate-Key-Fehler abstürzen.
     const result = await pool.query(
-    'INSERT INTO summary (summary_id, upload_Id, title, content) VALUES (DEFAULT, $1, $2, $3) RETURNING *',
+    `INSERT INTO summary (summary_id, upload_Id, title, content)
+     VALUES (DEFAULT, $1, $2, $3)
+     ON CONFLICT (upload_id) DO UPDATE SET title = EXCLUDED.title, content = EXCLUDED.content
+     RETURNING *`,
     [uploadId, title, summary]
   );
   return result.rows[0] ?? null;

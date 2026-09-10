@@ -8,7 +8,7 @@ import { WIDGET_REGISTRY } from "./WidgetRegistry";
 import { DEFAULT_WIDGET_IDS } from "./constants";
 
 // TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 1;
+const CURRENT_UID = 26;
 
 export function DashboardPage() {
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);

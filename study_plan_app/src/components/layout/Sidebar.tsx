@@ -8,7 +8,7 @@ import { NAV_ITEMS } from "@/components/dashboard/constants";
 import { useAuth } from "@/hooks/useAuth";
 
 // TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 1;
+const CURRENT_UID = 26;
 
 type SidebarProps = {
   open: boolean;

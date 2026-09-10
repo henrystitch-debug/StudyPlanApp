@@ -12,6 +12,9 @@ import {
   Download,
   Copy,
   Check,
+  CalendarPlus,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -55,27 +58,131 @@ type CourseDocument = {
   quizError?: string;
   isDownloading?: boolean;
   downloadError?: string;
+  isSummaryTextExpanded?: boolean;
+  isTopicIndexExpanded?: boolean;
 };
 
 type Course = {
   id: number;
   name: string;
+  semester?: string;
+};
+
+type StudyPlanItem = {
+  taskName: string;
+  description: string;
+  location: string;
+  scheduledDate: string;
+  startTime: string;
+  endTime: string;
+  isCompleted?: boolean;
 };
 
 // TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 1;
+const CURRENT_UID = 26;
 
-function AddCourseCard() {
-  // TODO: Mockup ohne Funktion – hier später ein Modal/Formular öffnen,
-  // das POST /api/courses aufruft und ein neues Fach anlegt.
+function AddCourseCard({
+  userId,
+  existingSemesters,
+  onCreated,
+}: {
+  userId: number;
+  existingSemesters: string[];
+  onCreated: (course: Course) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [semester, setSemester] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    if (!title.trim()) return;
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/course/courseCreate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, title, semester }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Kurs konnte nicht angelegt werden");
+      }
+
+      onCreated({
+        id: data.course.course_id,
+        name: data.course.title,
+        semester: data.course.semester,
+      });
+      setTitle("");
+      setSemester("");
+      setIsOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="flex h-full min-h-[132px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] text-muted transition-colors hover:bg-[var(--overlay)] hover:text-[var(--text-secondary)]"
+      >
+        <Plus size={18} />
+        <span className="text-[12.5px]">Add course</span>
+      </button>
+    );
+  }
+
   return (
-    <button
-      onClick={() => console.log("TODO: neues Fach anlegen")}
-      className="flex h-full min-h-[132px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] text-muted transition-colors hover:bg-[var(--overlay)] hover:text-[var(--text-secondary)]"
-    >
-      <Plus size={18} />
-      <span className="text-[12.5px]">Add course</span>
-    </button>
+    <div className="flex h-full min-h-[132px] flex-col gap-1.5 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] p-3">
+      <input
+        autoFocus
+        placeholder="Course name"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+        className="rounded-md border border-panel-border bg-panel px-2 py-1.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      <input
+        list="semester-options"
+        placeholder="Semester (optional)"
+        value={semester}
+        onChange={(e) => setSemester(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+        className="rounded-md border border-panel-border bg-panel px-2 py-1.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      <datalist id="semester-options">
+        {existingSemesters.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+      {error && <p className="text-[11px] text-rose">{error}</p>}
+      <div className="mt-auto flex gap-1.5">
+        <button
+          onClick={handleCreate}
+          disabled={isSaving || !title.trim()}
+          className="flex-1 rounded-md border border-panel-border bg-[var(--overlay)] px-2 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
+        >
+          {isSaving ? "Saving…" : "Save"}
+        </button>
+        <button
+          onClick={() => {
+            setIsOpen(false);
+            setError(null);
+          }}
+          className="rounded-md px-2 py-1 text-[11.5px] text-muted hover:text-[var(--text-secondary)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -124,7 +231,11 @@ export default function CoursesPage() {
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const [summaryTitles, setSummaryTitles] = useState<{ id: number; title: string }[]>([]);
+  const [summaryTitles, setSummaryTitles] = useState<
+    { id: number; summaryId: number; title: string }[]
+  >([]);
+  const [deletingSummaryId, setDeletingSummaryId] = useState<number | null>(null);
+  const [deleteSummaryError, setDeleteSummaryError] = useState<string | null>(null);
   const [isLoadingSummaryTitles, setIsLoadingSummaryTitles] = useState(false);
   const [summaryTitlesError, setSummaryTitlesError] = useState<string | null>(null);
 
@@ -132,6 +243,17 @@ export default function CoursesPage() {
   const [openSummaryText, setOpenSummaryText] = useState<string | null>(null);
   const [isLoadingOpenSummary, setIsLoadingOpenSummary] = useState(false);
   const [openSummaryError, setOpenSummaryError] = useState<string | null>(null);
+
+  const [studyPlanItems, setStudyPlanItems] = useState<StudyPlanItem[]>([]);
+  const [isLoadingStudyPlan, setIsLoadingStudyPlan] = useState(false);
+  const [studyPlanError, setStudyPlanError] = useState<string | null>(null);
+
+  const [showStudyPlanForm, setShowStudyPlanForm] = useState(false);
+  const [studyPlanStart, setStudyPlanStart] = useState("");
+  const [studyPlanEnd, setStudyPlanEnd] = useState("");
+  const [studyPlanCapacity, setStudyPlanCapacity] = useState(5);
+  const [isGeneratingStudyPlan, setIsGeneratingStudyPlan] = useState(false);
+  const [generateStudyPlanError, setGenerateStudyPlanError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -145,10 +267,13 @@ export default function CoursesPage() {
           throw new Error(data.error ?? "Kurse konnten nicht geladen werden");
         }
 
-        // Dummy-Backend liefert aktuell nur Namen ohne Id (string[]),
-        // daher wird die Id hier vorübergehend aus dem Index gebildet.
+        // Echte DB-Zeilen: { course_id, title, semester }.
         const list: Course[] = (data.courses ?? []).map(
-          (name: string, index: number) => ({ id: index + 1, name })
+          (row: { course_id: number; title: string; semester?: string }) => ({
+            id: row.course_id,
+            name: row.title,
+            semester: row.semester,
+          })
         );
 
         setCourses(list);
@@ -166,7 +291,6 @@ export default function CoursesPage() {
   // Lädt beim Auswählen eines Kurses die Titel bereits gespeicherter
   // Zusammenfassungen (GET /api/summary/summaryGetTitles). Die Route selbst
   // kennt aktuell keinen courseId-Filter - sie liefert immer alle Titel -
-  // das Nachladen wird hier trotzdem an die Kursauswahl gekoppelt.
   useEffect(() => {
     if (!selectedCourseId) return;
 
@@ -176,17 +300,21 @@ export default function CoursesPage() {
       setOpenSummaryId(null);
       setOpenSummaryText(null);
       try {
-        const response = await fetch("/api/summary/summaryGetTitles");
+        const response = await fetch(`/api/summary/summaryGetTitles?courseId=${selectedCourseId}`);
         const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.error ?? "Titel konnten nicht geladen werden");
         }
 
-        // Dummy-Backend liefert nur Titel ohne Id (string[]), daher wird die Id
-        // hier vorübergehend aus dem Index gebildet - wie bei den Kursen oben.
-        const titles: { id: number; title: string }[] = (data.titles ?? []).map(
-          (title: string, index: number) => ({ id: index + 1, title })
+        // Jede Zeile ist { summary_id, upload_id, title } - summaryGet sucht per
+        // upload_id (id), summaryDelete per summary_id (summaryId).
+        const titles: { id: number; summaryId: number; title: string }[] = (data.titles ?? []).map(
+          (row: { summary_id: number; upload_id: number; title: string }) => ({
+            id: row.upload_id,
+            summaryId: row.summary_id,
+            title: row.title,
+          })
         );
         setSummaryTitles(titles);
       } catch (err) {
@@ -198,6 +326,126 @@ export default function CoursesPage() {
 
     fetchSummaryTitles();
   }, [selectedCourseId]);
+
+  // Lädt beim Auswählen eines Kurses einen evtl. schon existierenden Studyplan
+  // (GET /api/studyplan/studyplanGet?courseId=...).
+  useEffect(() => {
+    if (!selectedCourseId) return;
+
+    const fetchStudyPlan = async () => {
+      setIsLoadingStudyPlan(true);
+      setStudyPlanError(null);
+      try {
+        const response = await fetch(`/api/studyplan/studyplanGet?courseId=${selectedCourseId}`);
+        const data = await response.json();
+
+        if (response.status === 404) {
+          setStudyPlanItems([]);
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Studyplan konnte nicht geladen werden");
+        }
+
+        // Die Zeilen kommen aus study_plan_item (task_name, description, location,
+        // is_completed, ...) - Datum/Uhrzeit stehen dort nicht mit drin, die Route
+        // joint aktuell nicht gegen die verknüpften Kalender-Events.
+        const items: StudyPlanItem[] = (data.studyPlan ?? []).map(
+          (row: { task_name: string; description: string; location: string; is_completed: boolean }) => ({
+            taskName: row.task_name,
+            description: row.description,
+            location: row.location,
+            scheduledDate: "",
+            startTime: "",
+            endTime: "",
+            isCompleted: row.is_completed,
+          })
+        );
+        setStudyPlanItems(items);
+      } catch (err) {
+        setStudyPlanError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      } finally {
+        setIsLoadingStudyPlan(false);
+      }
+    };
+
+    fetchStudyPlan();
+  }, [selectedCourseId]);
+
+  // Erzeugt einen neuen Studyplan: holt zuerst bestehende Kalendertermine im
+  // Zeitraum (damit nicht doppelt belegt wird) und alle Themen des Kurses,
+  // ruft dann POST /api/studyplan/studyplanCreate auf.
+  const handleGenerateStudyPlan = async () => {
+    if (!selectedCourseId || !studyPlanStart || !studyPlanEnd) return;
+
+    setIsGeneratingStudyPlan(true);
+    setGenerateStudyPlanError(null);
+
+    try {
+      const eventsResponse = await fetch(
+        `/api/calendar/calenderRangeEvents?userId=${CURRENT_UID}&startDate=${studyPlanStart}&endDate=${studyPlanEnd}`
+      );
+      const eventsData = eventsResponse.ok ? await eventsResponse.json() : { calenderEvents: [] };
+      const events = (eventsData.calenderEvents ?? []).map((row: any) => ({
+        userId: CURRENT_UID,
+        date: row.event_date ?? row.date,
+        startTime: row.start_time ?? row.startTime,
+        endTime: row.end_time ?? row.endTime,
+        autoCreated: row.ai_generated ?? row.autoCreated ?? false,
+        title: row.description ?? row.title ?? "",
+      }));
+
+      const topicsResponse = await fetch(`/api/topicIndexOfCourse?courseId=${selectedCourseId}`);
+      const topicsData = await topicsResponse.json();
+
+      if (!topicsResponse.ok) {
+        throw new Error(topicsData.error ?? "Themen des Kurses konnten nicht geladen werden");
+      }
+
+      // Flache Zeilen (ein Eintrag pro Thema, mit upload_id) nach upload_id
+      // gruppieren, wie es topicIndeces (indexItem[][]) erwartet.
+      const grouped = new Map<number, TopicIndexItem[]>();
+      for (const row of topicsData.topicItems ?? []) {
+        const list = grouped.get(row.upload_id) ?? [];
+        list.push({
+          title: row.title,
+          description: row.description,
+          location: row.location,
+          effort: row.estimated_effort,
+        });
+        grouped.set(row.upload_id, list);
+      }
+      const topicIndeces = Array.from(grouped.values());
+
+      const response = await fetch("/api/studyplan/studyplanCreate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: CURRENT_UID,
+          courseId: selectedCourseId,
+          startDate: studyPlanStart,
+          endDate: studyPlanEnd,
+          events,
+          topicIndeces,
+          capacity: studyPlanCapacity,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Studyplan konnte nicht erstellt werden");
+      }
+
+      setStudyPlanItems(data.studyplan ?? []);
+      setShowStudyPlanForm(false);
+    } catch (err) {
+      setGenerateStudyPlanError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    } finally {
+      setIsGeneratingStudyPlan(false);
+    }
+  };
 
   // Lädt die volle Zusammenfassung zu einem Titel per GET /api/summary/summaryGet.
   const handleOpenSavedSummary = async (id: number) => {
@@ -219,7 +467,9 @@ export default function CoursesPage() {
         throw new Error(data.error ?? "Zusammenfassung konnte nicht geladen werden");
       }
 
-      setOpenSummaryText(data.summary);
+      // summaryGet liefert jetzt die volle DB-Zeile (summary_id, upload_id, title,
+      // content, ...) statt eines reinen Strings - der Text steht in "content".
+      setOpenSummaryText(data.summary?.content ?? null);
     } catch (err) {
       setOpenSummaryError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
@@ -227,7 +477,36 @@ export default function CoursesPage() {
     }
   };
 
+  // Löscht eine gespeicherte Zusammenfassung per DELETE /api/summary/summaryDelete.
+  const handleDeleteSummary = async (entry: { id: number; summaryId: number }) => {
+    setDeletingSummaryId(entry.summaryId);
+    setDeleteSummaryError(null);
+    try {
+      const response = await fetch(`/api/summary/summaryDelete?id=${entry.summaryId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Zusammenfassung konnte nicht gelöscht werden");
+      }
+
+      setSummaryTitles((prev) => prev.filter((s) => s.summaryId !== entry.summaryId));
+      if (openSummaryId === entry.id) {
+        setOpenSummaryId(null);
+        setOpenSummaryText(null);
+      }
+    } catch (err) {
+      setDeleteSummaryError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    } finally {
+      setDeletingSummaryId(null);
+    }
+  };
+
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
+  const existingSemesters = Array.from(
+    new Set(courses.map((c) => c.semester).filter((s): s is string => Boolean(s)))
+  );
   const visibleDocuments = documents.filter((d) => d.courseId === selectedCourseId);
 
   const handleFileUpload = async (file: File) => {
@@ -249,6 +528,7 @@ export default function CoursesPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("courseId", String(selectedCourseId));
 
       const response = await fetch("/api/upload/uploadPost", {
         method: "POST",
@@ -261,10 +541,12 @@ export default function CoursesPage() {
         throw new Error(data.error ?? "Upload fehlgeschlagen");
       }
 
+      // uploadPost gibt jetzt die volle DB-Zeile zurück ({ upload_id, course_id,
+      // file_name, mime_type, data, uploaded_at }), nicht mehr ein "uploadId"-Feld.
       setDocuments((prev) =>
         prev.map((d) =>
           d.id === id
-            ? { ...d, isUploading: false, uploadId: data.response?.uploadId }
+            ? { ...d, isUploading: false, uploadId: data.response?.upload_id }
             : d
         )
       );
@@ -285,6 +567,22 @@ export default function CoursesPage() {
 
   const handleRemove = (id: string) => {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const toggleSummaryTextExpanded = (id: string) => {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, isSummaryTextExpanded: !d.isSummaryTextExpanded } : d
+      )
+    );
+  };
+
+  const toggleTopicIndexExpanded = (id: string) => {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, isTopicIndexExpanded: !d.isTopicIndexExpanded } : d
+      )
+    );
   };
 
   const handleCopy = async (id: string, text: string) => {
@@ -424,9 +722,11 @@ export default function CoursesPage() {
         throw new Error(data.error ?? "Download fehlgeschlagen");
       }
 
-      const uploadData = data.upload?.data;
-      const filename = uploadData?.filename || doc.name;
-      const mimeType = uploadData?.mimeType || "application/octet-stream";
+      // uploadGetById liefert jetzt die volle DB-Zeile direkt (file_name, mime_type,
+      // data), nicht mehr verschachtelt unter einem eigenen "data"-Objekt.
+      const uploadData = data.upload;
+      const filename = uploadData?.file_name || doc.name;
+      const mimeType = uploadData?.mime_type || "application/octet-stream";
       const rawBytes = uploadData?.data;
 
       // Buffer wird über JSON als { type: "Buffer", data: number[] } serialisiert.
@@ -499,7 +799,14 @@ export default function CoursesPage() {
           ))
         )}
 
-        <AddCourseCard />
+        <AddCourseCard
+          userId={CURRENT_UID}
+          existingSemesters={existingSemesters}
+          onCreated={(course) => {
+            setCourses((prev) => [...prev, course]);
+            setSelectedCourseId(course.id);
+          }}
+        />
       </div>
 
       {selectedCourse && (
@@ -535,19 +842,37 @@ export default function CoursesPage() {
               ) : summaryTitlesError ? (
                 <p className="text-[13px] text-rose">{summaryTitlesError}</p>
               ) : (
-                <ul className="flex flex-col gap-1.5">
-                  {summaryTitles.map((entry) => (
+                <>
+                  {deleteSummaryError && (
+                    <p className="mb-1.5 text-[12px] text-rose">{deleteSummaryError}</p>
+                  )}
+                  <ul className="flex flex-col gap-1.5">
+                    {summaryTitles.map((entry) => (
                     <li
-                      key={entry.id}
+                      key={entry.summaryId}
                       className="rounded-lg border border-panel-border bg-panel"
                     >
-                      <button
-                        onClick={() => handleOpenSavedSummary(entry.id)}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
-                      >
-                        <FileIconLucide size={15} className="shrink-0 text-accent" />
-                        <span className="flex-1 truncate">{entry.title || "Untitled"}</span>
-                      </button>
+                      <div className="group flex items-center">
+                        <button
+                          onClick={() => handleOpenSavedSummary(entry.id)}
+                          className="flex flex-1 items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
+                        >
+                          <FileIconLucide size={15} className="shrink-0 text-accent" />
+                          <span className="flex-1 truncate">{entry.title || "Untitled"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSummary(entry)}
+                          disabled={deletingSummaryId === entry.summaryId}
+                          className="shrink-0 rounded p-1.5 mr-2 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100 disabled:opacity-50"
+                          aria-label="Delete summary"
+                        >
+                          {deletingSummaryId === entry.summaryId ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
+                        </button>
+                      </div>
 
                       {openSummaryId === entry.id && (
                         <div className="border-t border-panel-border px-3 py-2.5">
@@ -563,11 +888,115 @@ export default function CoursesPage() {
                         </div>
                       )}
                     </li>
-                  ))}
-                </ul>
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
           )}
+
+          <section className="mb-8">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-[15px] font-medium text-foreground font-serif">
+                Study Plan
+              </h2>
+              <button
+                onClick={() => setShowStudyPlanForm((v) => !v)}
+                className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+              >
+                <CalendarPlus size={13} />
+                {studyPlanItems.length > 0 ? "Regenerate" : "Generate Study Plan"}
+              </button>
+            </div>
+
+            {showStudyPlanForm && (
+              <div className="mb-3 flex flex-col gap-2.5 rounded-xl border border-panel-border bg-panel p-3.5">
+                <div className="flex flex-wrap items-end gap-2.5">
+                  <label className="flex flex-col gap-1 text-[11.5px] text-muted">
+                    Start date
+                    <input
+                      type="date"
+                      value={studyPlanStart}
+                      onChange={(e) => setStudyPlanStart(e.target.value)}
+                      className="rounded-md border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-foreground"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11.5px] text-muted">
+                    End date
+                    <input
+                      type="date"
+                      value={studyPlanEnd}
+                      onChange={(e) => setStudyPlanEnd(e.target.value)}
+                      className="rounded-md border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-foreground"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11.5px] text-muted">
+                    Hours / week
+                    <input
+                      type="number"
+                      min={1}
+                      value={studyPlanCapacity}
+                      onChange={(e) => setStudyPlanCapacity(Number(e.target.value))}
+                      className="w-20 rounded-md border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-foreground"
+                    />
+                  </label>
+                  <button
+                    onClick={handleGenerateStudyPlan}
+                    disabled={isGeneratingStudyPlan || !studyPlanStart || !studyPlanEnd}
+                    className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-3 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
+                  >
+                    {isGeneratingStudyPlan ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={14} />
+                    )}
+                    {isGeneratingStudyPlan ? "Generating…" : "Generate"}
+                  </button>
+                </div>
+                {generateStudyPlanError && (
+                  <p className="text-[12px] text-rose">{generateStudyPlanError}</p>
+                )}
+              </div>
+            )}
+
+            {isLoadingStudyPlan ? (
+              <p className="text-[13px] text-muted">Loading…</p>
+            ) : studyPlanError ? (
+              <p className="text-[13px] text-rose">{studyPlanError}</p>
+            ) : studyPlanItems.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
+                <p className="text-[13px] text-muted">
+                  No study plan yet &ndash; generate one above.
+                </p>
+              </div>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {studyPlanItems.map((item, i) => (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-panel-border bg-panel px-3 py-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[13px] font-medium text-foreground">
+                        {item.taskName}
+                      </p>
+                      {(item.scheduledDate || item.startTime) && (
+                        <span className="shrink-0 text-[11px] text-muted">
+                          {item.scheduledDate} {item.startTime && `${item.startTime}–${item.endTime}`}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">
+                      {item.description}
+                    </p>
+                    {item.location && (
+                      <p className="mt-0.5 text-[11.5px] text-muted">{item.location}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           <section>
             <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
@@ -702,31 +1131,55 @@ export default function CoursesPage() {
                         <textarea
                           readOnly
                           value={doc.summary.summary}
-                          rows={8}
+                          rows={doc.isSummaryTextExpanded ? 16 : 3}
                           onFocus={(e) => e.currentTarget.select()}
                           className="w-full resize-y rounded-md border border-panel-border bg-[var(--sunken)] p-2.5 font-mono text-[11.5px] leading-relaxed text-[var(--text-secondary)] focus:outline-none focus:ring-1 focus:ring-accent"
                         />
+                        <button
+                          onClick={() => toggleSummaryTextExpanded(doc.id)}
+                          className="mt-1 flex items-center gap-1 text-[11.5px] text-muted hover:text-[var(--text-secondary)]"
+                        >
+                          {doc.isSummaryTextExpanded ? (
+                            <>
+                              <ChevronUp size={13} /> Minimize
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={13} /> Expand
+                            </>
+                          )}
+                        </button>
 
                         {doc.summary.topicIndex.length > 0 && (
                           <div className="mt-3">
-                            <p className="mb-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                              Topic Index
-                            </p>
-                            <ul className="flex flex-col gap-1.5">
-                              {doc.summary.topicIndex.map((item, i) => (
-                                <li
-                                  key={i}
-                                  className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
-                                >
-                                  <span className="font-medium text-foreground">{item.title}</span>
-                                  {" — "}
-                                  {item.description}
-                                  <span className="ml-1 text-muted">
-                                    ({item.location}, effort: {item.effort})
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
+                            <button
+                              onClick={() => toggleTopicIndexExpanded(doc.id)}
+                              className="mb-1.5 flex items-center gap-1 text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-foreground"
+                            >
+                              {doc.isTopicIndexExpanded ? (
+                                <ChevronUp size={13} />
+                              ) : (
+                                <ChevronDown size={13} />
+                              )}
+                              Topic Index ({doc.summary.topicIndex.length})
+                            </button>
+                            {doc.isTopicIndexExpanded && (
+                              <ul className="flex flex-col gap-1.5">
+                                {doc.summary.topicIndex.map((item, i) => (
+                                  <li
+                                    key={i}
+                                    className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
+                                  >
+                                    <span className="font-medium text-foreground">{item.title}</span>
+                                    {" — "}
+                                    {item.description}
+                                    <span className="ml-1 text-muted">
+                                      ({item.location}, effort: {item.effort})
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
                         )}
                       </div>

@@ -5,21 +5,20 @@ import { getUploadById } from "@/lib/db/upload";
 
 export async function POST (request: Request){
     try{
-        const formData = await request.formData(); 
-        const uploadIdForm = formData.get("uploadId");
+        const body = await request.json();
+        const uploadId = Number(body.uploadId);
 
-        if (!uploadIdForm || Number.isNaN(uploadIdForm)) {
+        if (!uploadId || Number.isNaN(uploadId)) {
             return Response.json({ error: "uploadId is required" }, { status: 400 });
         }
 
-        const uploadId = +uploadIdForm;
         const upload = await getUploadById(uploadId);
 
          if (!upload) {
         return Response.json({ error: "Upload not found" }, { status: 404 });
   }
-        console.log('Buffer length:', upload.data.length, 'filename:', upload.file_name, 'mime:', upload.mime_type);
-        const file = new File([upload.data], upload.filename, { type: upload.mimeType });
+
+        const file = new File([upload.data], upload.file_name, { type: upload.mime_type });
 
         if(!file){
             return Response.json(
@@ -41,7 +40,7 @@ export async function POST (request: Request){
             { error: "Failed saving summary" },
             { status: 500})
         }
-        
+
         const responseDbTopicIndex = await saveTopicIndex(uploadId, responseAI.content.topicIndex);
         if(!responseDbTopicIndex){
             return Response.json(

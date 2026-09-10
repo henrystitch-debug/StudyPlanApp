@@ -36,10 +36,10 @@ export const studyplanResponseSchema = {
           description: { type: "string" },
           location: { type: "string" },
           scheduledDate: { type: "string", description: "ISO-Datum, z.B. 2026-09-14" },
-          startTime: { type: "number" },
-          endTime: { type: "number" }
+          startTime: { type: "string", description: "HH:MM, z.B. 14:00" },
+          endTime: { type: "string", description: "HH:MM, z.B. 15:30" }
         },
-        required: ["taskName", "description", "location", "estimatedTime", "scheduledDate"],
+        required: ["taskName", "description", "location", "scheduledDate", "startTime", "endTime"],
       },
     },
   },

@@ -48,7 +48,10 @@ export async function createStudyplan(startDate: Date, endDate: Date, calendarEv
         }
     }
 
-    const parsed = aiStudyplanResponse.parse(JSON.parse(response.text));
+    // Gemini liefert laut studyplanResponseSchema ein Objekt { items: [...] },
+    // aiStudyplanResponse erwartet aber ein reines Array - vorher wurde hier
+    // das ganze Objekt validiert, was immer mit einem ZodError fehlschlug.
+    const parsed = aiStudyplanResponse.parse(JSON.parse(response.text).items);
 
     const fullItems = parsed.map((item) => ({
         ...item,

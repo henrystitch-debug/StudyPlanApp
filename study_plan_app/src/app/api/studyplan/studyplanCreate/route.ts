@@ -16,7 +16,7 @@ export async function POST (request: Request){
 
           const responseDb = await saveStudyplan(body.userId, body.courseId, responseAI.studyplan);
 
-          if(!responseDb){
+          if(!responseDb || !responseDb.success){
             return Response.json(
             { error: "Error while saving studyplan" },
             { status: 500})
