@@ -1,5 +1,5 @@
 
-//Run file: npx tsx script/testStudyplanRoute.ts
+//Run file: npx tsx script/routes/testStudyplan.ts
  
 //TODO: updaten - file wird nicht mehr direkt gesendet
 

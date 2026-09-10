@@ -1,4 +1,4 @@
-import { getTopicIndex } from "@/lib/db/topicIndex";
+import { getTopicIndex } from "@/src/lib/db/topicItem";
 
 export async function GET(request: Request) {
 

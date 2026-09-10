@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-//Run file: npx tsx script/testQuizRoute.ts
+//Run file: npx tsx script/routes/testQuiz.ts
  
 //TODO: updaten - file wird nicht mehr direkt gesendet
 
