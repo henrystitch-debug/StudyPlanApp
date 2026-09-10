@@ -15,12 +15,24 @@ export function useTheme() {
     setTheme(preferred);
   }, []);
 
+  // Only sync the class here. Persisting on every `theme` change would let the
+  // hard-coded "dark" default overwrite a stored "light" before the effect
+  // above has run (worse under React StrictMode's double-invoke), so the write
+  // happens in toggleTheme instead — the only place theme changes by choice.
   useEffect(() => {
     document.documentElement.classList.toggle("light", theme === "light");
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const toggleTheme = () =>
+    setTheme((t) => {
+      const next: Theme = t === "dark" ? "light" : "dark";
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
 
   return { theme, toggleTheme };
 }

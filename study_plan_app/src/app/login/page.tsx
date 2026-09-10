@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   Eye,
@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Flame,
   MailCheck,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   useAuth,
@@ -46,6 +48,7 @@ const CSS = `
     --emerald: #7fae86;
     --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.18), 0 2px 18px rgba(246, 169, 52, 0.12);
 
+    position: relative;
     min-height: 100vh;
     width: 100%;
     background: var(--bg);
@@ -53,6 +56,52 @@ const CSS = `
     font-family: Arial, Helvetica, sans-serif;
     display: grid;
     grid-template-columns: 1.05fr 1fr;
+  }
+
+  /* Light mode — driven by the app-wide .light class on <html> (useTheme). */
+  :root.light .lp-root {
+    --bg: #eef1fa;
+    --panel: #ffffff;
+    --panel-border: rgba(18, 20, 42, 0.1);
+    --overlay: rgba(18, 20, 70, 0.05);
+    --overlay-strong: rgba(18, 20, 70, 0.1);
+    --fg: #12142a;
+    --fg-secondary: #2a2c52;
+    --muted: #565a86;
+    --accent-strong: #c2660c;
+    --rose: #e11d48;
+    --emerald: #4b7a52;
+    --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.28), 0 2px 18px rgba(246, 169, 52, 0.18);
+  }
+  :root.light .lp-brand::before { opacity: 0.5; }
+  :root.light .lp-brand::after { opacity: 0.5; }
+  /* a plain overlay wash reads as "disabled" on white — lift the active tab instead */
+  :root.light .lp-tab-pill {
+    background: var(--panel);
+    box-shadow: 0 1px 3px rgba(18, 20, 42, 0.12), 0 0 0 1px rgba(18, 20, 42, 0.06);
+  }
+
+  .lp-theme-toggle {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    background: var(--overlay);
+    color: var(--fg-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.2s ease;
+  }
+  .lp-theme-toggle:hover {
+    background: var(--overlay-strong);
+    color: var(--fg);
+    box-shadow: var(--glow-soft);
   }
 
   @media (max-width: 860px) {
@@ -652,9 +701,123 @@ function AppleIcon() {
   );
 }
 
+type AuthResult = { ok: boolean; error?: string; fallback?: boolean };
+
+// Talk to the auth routes:
+//   POST /api/user/userGet     -> verify credentials (sign in)
+//   POST /api/user/userCreate  -> register a new account (sign up)
+// The backend + database are still being built, so when a route doesn't
+// answer (or answers "not implemented") we fall back to the local placeholder
+// auth from useAuth and the page keeps working. Once the routes handle these
+// POSTs for real, the fallback stops being hit.
+async function postJSON(
+  url: string,
+  payload: Record<string, unknown>,
+): Promise<Response | null> {
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    return null; // network error / server unreachable -> caller falls back
+  }
+}
+
+async function requestSignIn(
+  email: string,
+  password: string,
+): Promise<AuthResult> {
+  const res = await postJSON("/api/user/userGet", { email, password });
+  if (res && (res.status === 401 || res.status === 403)) {
+    const body = await res.json().catch(() => null);
+    return { ok: false, error: body?.error ?? "Wrong email or password." };
+  }
+  if (res && res.ok) return { ok: true };
+  // Backend not ready — verify against the local placeholder store.
+  if (verifyCredentials(email, password)) return { ok: true, fallback: true };
+  return { ok: false, error: "Wrong email or password." };
+}
+
+async function requestSignUp(
+  email: string,
+  password: string,
+  name: string,
+): Promise<AuthResult> {
+  const res = await postJSON("/api/user/userCreate", { email, password, name });
+  if (res && res.status === 409) {
+    const body = await res.json().catch(() => null);
+    return {
+      ok: false,
+      error: body?.error ?? "An account with that email already exists.",
+    };
+  }
+  if (res && res.ok) return { ok: true };
+  // Backend not ready — register in the local placeholder store instead.
+  return { ok: true, fallback: true };
+}
+
+// The app-wide theme lives on <html> as the `.light` class plus the
+// "study-learn-theme" localStorage key (see AppShell / useTheme). AppShell
+// renders no chrome on /login, so we drive a toggle here that reads and
+// writes exactly those. Same module-store + useSyncExternalStore shape as
+// useAuth, so it hydrates cleanly and every caller stays in sync.
+const THEME_KEY = "study-learn-theme";
+
+const themeListeners = new Set<() => void>();
+let lightCache: boolean | undefined;
+
+function readLight(): boolean {
+  try {
+    const stored = window.localStorage.getItem(THEME_KEY);
+    if (stored) return stored === "light";
+  } catch {
+    /* ignore */
+  }
+  return window.matchMedia("(prefers-color-scheme: light)").matches;
+}
+
+function setLight(next: boolean) {
+  document.documentElement.classList.toggle("light", next);
+  try {
+    window.localStorage.setItem(THEME_KEY, next ? "light" : "dark");
+  } catch {
+    /* ignore */
+  }
+  lightCache = next;
+  themeListeners.forEach((l) => l());
+}
+
+function subscribeTheme(cb: () => void) {
+  themeListeners.add(cb);
+  return () => themeListeners.delete(cb);
+}
+
+function getLightSnapshot(): boolean {
+  if (lightCache === undefined) lightCache = readLight();
+  return lightCache;
+}
+
+function useLoginTheme() {
+  const light = useSyncExternalStore(
+    subscribeTheme,
+    getLightSnapshot,
+    () => false, // server: render dark, correct on the client
+  );
+
+  // Keep <html> in step with what we read (AppShell does this too; harmless).
+  useEffect(() => {
+    document.documentElement.classList.toggle("light", light);
+  }, [light]);
+
+  return { light, toggle: () => setLight(!getLightSnapshot()) };
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { signIn, isAuthed } = useAuth();
+  const { light, toggle: toggleTheme } = useLoginTheme();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -717,11 +880,6 @@ export default function LoginPage() {
     setFormError(null);
     if (!canSubmit || loading) return;
 
-    if (mode === "signin" && !verifyCredentials(email, password)) {
-      setFormError("Wrong email or password.");
-      return;
-    }
-
     // Step 1 of a reset: pretend to send the email, then reveal the
     // new-password step. We never say whether the account exists.
     if (mode === "reset" && resetStep === "request") {
@@ -743,26 +901,51 @@ export default function LoginPage() {
         setFormError("No account found for that email.");
         return;
       }
+      setLoading(true);
+      setSuccess(false);
+      setTimeout(() => {
+        setLoading(false);
+        setSuccess(true);
+        resetPassword(email, password); // stay on the page, sign in with the new password
+      }, 1100);
+      return;
     }
 
+    // Sign in / sign up go through the API routes.
+    void submitAuth();
+  };
+
+  const submitAuth = async () => {
+    const addr = email.trim().toLowerCase();
     setLoading(true);
     setSuccess(false);
-    setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
+    try {
+      const result =
+        mode === "signup"
+          ? await requestSignUp(addr, password, name.trim())
+          : await requestSignIn(addr, password);
 
-      if (mode === "reset") {
-        resetPassword(email, password);
-        return; // stay on the page, user signs in with the new password
+      if (!result.ok) {
+        setLoading(false);
+        setFormError(result.error ?? "Something went wrong. Please try again.");
+        return;
       }
 
-      if (mode === "signup") {
+      // Backend not ready yet — keep the local placeholder store in sync so a
+      // page reload still recognises the account.
+      if (result.fallback && mode === "signup") {
         registerAccount(email.trim(), password);
       }
-      signIn(email.trim().toLowerCase());
+
+      setLoading(false);
+      setSuccess(true);
+      signIn(addr);
       router.replace("/");
       router.refresh();
-    }, 1100);
+    } catch {
+      setLoading(false);
+      setFormError("Something went wrong. Please try again.");
+    }
   };
 
   const switchMode = (next: Mode) => {
@@ -813,6 +996,15 @@ export default function LoginPage() {
   return (
     <div className="lp-root">
       <style>{CSS}</style>
+
+      <button
+        type="button"
+        className="lp-theme-toggle"
+        onClick={toggleTheme}
+        aria-label={light ? "Switch to dark mode" : "Switch to light mode"}
+      >
+        {light ? <Moon size={15} /> : <Sun size={15} />}
+      </button>
 
       <div className="lp-brand">
         <div className="lp-orbit" aria-hidden="true">
