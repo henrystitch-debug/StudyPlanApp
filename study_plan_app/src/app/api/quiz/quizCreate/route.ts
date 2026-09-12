@@ -18,7 +18,8 @@ export async function POST (request: Request){
         return Response.json({ error: "Upload not found" }, { status: 404 });
           }
 
-        const file = new File([upload.data.data], upload.data.filename, { type: upload.data.mimeType });
+        console.log('Buffer length:', upload.data.length, 'filename:', upload.file_name, 'mime:', upload.mime_type);
+        const file = new File([upload.data], upload.filename, { type: upload.mimeType });
 
         if(!file){
             return Response.json(
@@ -37,6 +38,12 @@ export async function POST (request: Request){
 
           const responseDb = await saveQuizItems(uploadId, responseAI.quiz.flashcards, responseAI.quiz.mcq, responseAI.quiz.openText);
 
+          if(!responseDb){
+            return Response.json(
+            { error: "Failed saving quizzes" },
+            { status: 500})
+          }
+
           return Response.json({
             flashcards: responseAI.quiz.flashcards,
             mcq: responseAI.quiz.mcq,
@@ -47,7 +54,7 @@ export async function POST (request: Request){
     catch(err){
         console.error(err);
         return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error while creating quizzes" },
             { status: 500})
         }
 }

@@ -2,15 +2,10 @@ import fs from "fs";
 import path from "path";
 
 //Run file: npx tsx script/routes/testQuiz.ts
- 
-//TODO: updaten - file wird nicht mehr direkt gesendet
 
 async function testUpload(){
-const fileBuffer = fs.readFileSync(path.join(__dirname, "test_files", "Buckelwal.txt"));
-const formData = new FormData();
-formData.append("file", new Blob([fileBuffer]), "Buckelwal.txt");
 
- const res = await fetch("http://localhost:3000/api/quiz/quizCreate", { method: "POST", body: formData });
+ const res = await fetch("http://localhost:3000/api/quiz/quizCreate", { method: "POST", body: JSON.stringify({ uploadId: 5 }) });
       if (!res.ok) throw new Error("Error occured while processing the file");
       const data = await res.json();
 

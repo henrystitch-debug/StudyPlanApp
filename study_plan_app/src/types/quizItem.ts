@@ -51,9 +51,9 @@ export const quizSchema = {
         type: "object",
         properties: {
           question: { type: "string" },
-          modelAnswer: { type: "string" },
+          answer: { type: "string" },
         },
-        required: ["question", "modelAnswer"],
+        required: ["question", "answer"],
       },
     },
   },
