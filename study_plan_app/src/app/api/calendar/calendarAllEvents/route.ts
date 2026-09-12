@@ -16,6 +16,6 @@ export async function GET(request: Request) {
     }
 
     return Response.json(
-        { calenderEvents: dbResponse }
+        { events: dbResponse }
     );
 }

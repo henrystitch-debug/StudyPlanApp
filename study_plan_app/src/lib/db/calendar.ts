@@ -3,7 +3,7 @@ import { pool } from "./client";
 // ===============================================
 // GET events today
 //================================================
-export async function getTodaysEventsByUserId(userId : number, date: Date) {
+export async function getTodaysEventsByUserId(userId : number, date: string) {
  
     const result = await pool.query(
     `SELECT * FROM events WHERE user_id = $1 AND event_date = $2`,
@@ -42,7 +42,7 @@ export async function getAllEventsOfCourse(userId : number, courseId: number) {
 export async function getEventsInRange(userId : number, startDate: string, endDate: string) {
  
     const result = await pool.query(
-    `SELECT * FROM events WHERE user_id = $1 AND event_date >= $2 AND event_date <= $3`,
+    `SELECT * FROM event WHERE user_id = $1 AND event_date >= $2 AND event_date <= $3`,
      [userId, startDate, endDate]
   );
   return result.rows ?? null;;

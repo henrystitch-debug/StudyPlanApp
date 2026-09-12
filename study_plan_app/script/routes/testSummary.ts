@@ -1,10 +1,8 @@
 //Run file: npx tsx script/routes/testSummary.ts
 
 async function testUpload(){
-const formData = new FormData();
-formData.append("uploadId",  String(2));
 
- const res = await fetch("http://localhost:3000/api/summary/summaryCreate", { method: "POST", body: formData });
+ const res = await fetch("http://localhost:3000/api/summary/summaryCreate", { method: "POST", body: JSON.stringify({ uploadId: 8 }) });
       if (!res.ok) throw new Error("Error occured while processing the file");
       const data = await res.json();
 

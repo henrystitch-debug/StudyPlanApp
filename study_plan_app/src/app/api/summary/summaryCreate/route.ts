@@ -5,14 +5,13 @@ import { getUploadById } from "@/lib/db/upload";
 
 export async function POST (request: Request){
     try{
-        const formData = await request.formData(); 
-        const uploadIdForm = formData.get("uploadId");
+        const body = await request.json();
+        const uploadId = Number(body.uploadId);
 
-        if (!uploadIdForm || Number.isNaN(uploadIdForm)) {
+        if (!uploadId || Number.isNaN(uploadId)) {
             return Response.json({ error: "uploadId is required" }, { status: 400 });
         }
 
-        const uploadId = +uploadIdForm;
         const upload = await getUploadById(uploadId);
 
          if (!upload) {

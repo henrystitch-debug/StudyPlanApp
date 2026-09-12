@@ -4,10 +4,10 @@ import path from "path";
 //Run file: npx tsx script/routes/testUpload.ts
 
 async function testUpload(){
-const fileBuffer = fs.readFileSync(path.join(__dirname, "test_files", "klr_slides.pdf"));
+const fileBuffer = fs.readFileSync(path.join(__dirname, "test_files", "prolo_case.pdf"));
 const formData = new FormData();
-formData.append("file", new Blob([fileBuffer]), "klr_slides.pdf");
-formData.append("courseId", String(6));
+formData.append("file", new Blob([fileBuffer]), "prolo_case.pdf");
+formData.append("courseId", String(5));
 
  const res = await fetch("http://localhost:3000/api/upload/uploadPost", { method: "POST", body: formData });
       if (!res.ok) throw new Error("Error occured while processing the file");

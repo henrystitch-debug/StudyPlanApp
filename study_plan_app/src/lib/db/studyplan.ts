@@ -14,16 +14,6 @@ export async function getStudyplanById(courseId: number){
   return result.rows;
 }
 
-function calculateEstimatedMinutes(startTime: string, endTime: string): number {
-  const toMinutes = (time: string): number => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
-  };
-
-  const diff = toMinutes(endTime) - toMinutes(startTime);
-  return diff >= 0 ? diff : diff + 24 * 60; // handles the (unlikely) case of crossing midnight
-}
-
 // ===============================================
 // SAVE Studyplan
 //================================================
@@ -73,19 +63,19 @@ export async function saveStudyplan(
       );
       const eventId = eventResult.rows[0].event_id;
 
-      const estimatedMinutes = calculateEstimatedMinutes(item.startTime, item.endTime);
-
       const itemResult = await client.query(
-        `INSERT INTO study_plan_item (study_plan_item_id, study_plan_id, task_name, description, location, is_completed, estimated_minutes, event_id)
-         VALUES (DEFAULT, $1, $2, $3, $4, FALSE, $5, $6)
+        `INSERT INTO study_plan_item (study_plan_item_id, study_plan_id, task_name, description, location, is_completed, event_id, upload_id, start_time, end_time)
+         VALUES (DEFAULT, $1, $2, $3, $4, FALSE, $5, $6, $7, $8)
          RETURNING *`,
         [
           studyPlanId,
           item.taskName,
           item.description,
           item.location,
-          estimatedMinutes,
           eventId,
+          item.uploadId,
+          item.startTime,
+          item.endTime
         ]
       );
       savedItems.push(itemResult.rows[0]);
