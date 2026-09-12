@@ -27,17 +27,31 @@ export async function saveUser(email: string, password: string){
 }
 
 // ===============================================
-// UPDATE user
+// UPDATE user (name)
 //================================================
-export async function updateUser(userId: number, name: string, streak: number){
+export async function updateUserName(userId: number, name: string){
 
  const result = await pool.query(
     `UPDATE app_user
-     SET name = $1,
-     streak = $2
-     WHERE user_id = $3
+     SET name = $1
+     WHERE user_id = $2
      RETURNING *`,
-    [name, streak, userId]
+    [name, userId]
+  );
+  return result.rows[0] ?? null;
+}
+
+// ===============================================
+// UPDATE user (streak)
+//================================================
+export async function updateUserStreak(userId: number, streak: number){
+
+ const result = await pool.query(
+    `UPDATE app_user
+     SET streak = $1
+     WHERE user_id = $2
+     RETURNING *`,
+    [streak, userId]
   );
   return result.rows[0] ?? null;
 }

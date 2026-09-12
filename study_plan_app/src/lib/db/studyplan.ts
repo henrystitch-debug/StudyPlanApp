@@ -92,7 +92,7 @@ export async function saveStudyplan(
 }
 
 // ===============================================
-// SAVE Studyplan
+// DELETE Studyplan
 //================================================
 export async function deleteStudyplan(courseId: number) {
   const client = await pool.connect();
@@ -132,6 +132,61 @@ export async function deleteStudyplan(courseId: number) {
   } catch (err) {
     await client.query('ROLLBACK');
     return { success: false, error: (err as Error).message };
+  } finally {
+    client.release();
+  }
+}
+
+
+// ===============================================
+// UPDATE Studyplan Item
+//================================================
+export async function updateStudyPlanItemCompletion(
+  studyPlanItemId: number,
+  isCompleted: boolean
+) {
+  const result = await pool.query(
+    `UPDATE study_plan_item
+     SET is_completed = $1
+     WHERE study_plan_item_id = $2
+     RETURNING *`,
+    [isCompleted, studyPlanItemId]
+  );
+  return result.rows[0] ?? null;
+}
+
+
+// ===============================================
+// DELETE Studyplan Item
+//================================================
+export async function deleteStudyPlanItem(studyPlanItemId: number) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const itemResult = await client.query(
+      `DELETE FROM study_plan_item
+       WHERE study_plan_item_id = $1
+       RETURNING event_id`,
+      [studyPlanItemId]
+    );
+
+    if (!itemResult.rowCount) {
+      await client.query('ROLLBACK');
+      return false; // item didn't exist
+    }
+
+    const eventId = itemResult.rows[0].event_id;
+
+    if (eventId) {
+      await client.query('DELETE FROM event WHERE event_id = $1', [eventId]);
+    }
+
+    await client.query('COMMIT');
+    return true;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
