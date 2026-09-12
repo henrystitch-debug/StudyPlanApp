@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { Timer } from "lucide-react";
 
 function formatTime(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
@@ -39,48 +39,37 @@ export function FocusCard() {
   };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-panel-border bg-[linear-gradient(to_bottom_right,var(--hero-from),var(--hero-to))] p-6 shadow-[var(--shadow-hero)] sm:p-8">
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="max-w-md">
-          <div className="mb-3 flex items-center gap-2 text-[12px] font-medium uppercase tracking-wider text-accent">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            Focus Session
-          </div>
-          <h2 className="mb-3 text-[26px] font-semibold leading-[1.3] text-foreground font-serif sm:text-[32px]">
-            Pull your desk lamp closer. 25 minutes, only art, nothing else.
-          </h2>
-          <p className="mb-4 text-[14.5px] leading-6 text-muted">
-            The timer dims the rest of your workspace while it runs &ndash; lit up is only what
-            you&apos;re actually working on.
-          </p>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[13px] text-[var(--text-secondary)]">
-            <span className="h-2 w-2 rounded-sm bg-rose" />
-            art
-            <ChevronRight size={12} className="rotate-90 text-muted" />
+    <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/15 text-accent">
+            <Timer size={14} />
           </span>
+          <h3 className="text-[19px] font-semibold text-foreground font-serif">Focus Session</h3>
         </div>
+        <span className="text-[12px] text-muted">Round 1</span>
+      </div>
+      <p className="mb-4 text-[13px] leading-5 text-muted">
+        25 minutes, nothing else.
+      </p>
 
-        <div className="flex shrink-0 flex-col items-center gap-3 rounded-xl border border-panel-border bg-[var(--sunken)] px-8 py-6 sm:px-10">
-          <span className="text-[44px] font-light tabular-nums tracking-tight text-[var(--accent-strong)] font-serif sm:text-[48px]">
-            {formatTime(secondsLeft)}
-          </span>
-          <span className="text-[11.5px] font-medium uppercase tracking-wider text-muted">
-            Focus Round 1
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setRunning((r) => !r)}
-              className="rounded-full bg-accent px-5 py-2 text-[14px] font-medium text-accent-foreground transition-colors hover:brightness-110"
-            >
-              {running ? "Pause" : "Start Focus"}
-            </button>
-            <button
-              onClick={handleSkip}
-              className="rounded-full border border-panel-border bg-[var(--overlay)] px-4 py-2 text-[14px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
-            >
-              Skip
-            </button>
-          </div>
+      <div className="mt-auto flex flex-col items-center gap-3 rounded-xl border border-panel-border bg-[var(--sunken)] py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <span className="text-[34px] font-light tabular-nums tracking-tight text-[var(--accent-strong)] font-serif">
+          {formatTime(secondsLeft)}
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setRunning((r) => !r)}
+            className="rounded-full bg-accent px-4 py-1.5 text-[13px] font-medium text-accent-foreground transition-colors hover:brightness-110"
+          >
+            {running ? "Pause" : "Start Focus"}
+          </button>
+          <button
+            onClick={handleSkip}
+            className="rounded-full border border-panel-border bg-[var(--overlay)] px-3 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+          >
+            Skip
+          </button>
         </div>
       </div>
     </div>

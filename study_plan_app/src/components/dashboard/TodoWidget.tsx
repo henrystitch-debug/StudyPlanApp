@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, ListChecks, Plus } from "lucide-react";
 import type { TodoItem } from "./types";
 import { INITIAL_TODOS } from "./constants";
 
@@ -23,9 +23,14 @@ export function TodoWidget() {
   const doneCount = todos.filter((t) => t.done).length;
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5">
+    <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">To Do</h3>
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/15 text-sky-500">
+            <ListChecks size={14} />
+          </span>
+          <h3 className="text-[19px] font-semibold text-foreground font-serif">To Do</h3>
+        </div>
         <span className="text-[12px] text-muted">
           {doneCount}/{todos.length} done
         </span>

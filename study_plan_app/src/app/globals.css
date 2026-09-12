@@ -42,7 +42,7 @@
   /* accent stays identical — the lamp is always on */
   --accent: #f6a934;
   --accent-foreground: #1a1305;
-  --accent-strong: #c2660c;
+  --accent-strong: #059669;
 
   --rose: #e11d48;
   --muted: #565a86;
@@ -53,13 +53,15 @@
   --sunken: rgba(30, 40, 120, 0.10);
   --scrim: rgba(20, 16, 10, 0.4);
 
-  /* hero card gradient — deep indigo into amber, with glow */
-  --hero-from: #aab8ec;
-  --hero-to: #ffc978;
-  --hero-glow: 0 8px 40px rgba(246, 169, 52, 0.45), 0 0 60px rgba(120, 140, 230, 0.3);
+  /* hero card gradient — warm cream into amber gold, same family as the
+     accent color so it reads as one light source rather than two competing
+     hues (the old cool-blue-into-amber mix produced a muddy midtone) */
+  --hero-from: #fff3de;
+  --hero-to: #ffb454;
+  --hero-glow: 0 8px 40px rgba(246, 169, 52, 0.35), 0 0 50px rgba(255, 180, 84, 0.25);
 
-  /* hover glow: cool blue ring + soft amber bleed */
-  --hover-glow: 0 0 0 1px rgba(120, 140, 230, 0.35), 0 4px 24px rgba(246, 169, 52, 0.3);
+  /* hover glow: warm amber ring + soft bleed, matching the hero */
+  --hover-glow: 0 0 0 1px rgba(246, 169, 52, 0.35), 0 4px 24px rgba(246, 169, 52, 0.3);
 }
 
 @theme inline {

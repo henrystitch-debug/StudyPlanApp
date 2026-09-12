@@ -68,7 +68,7 @@ const CSS = `
     --fg: #12142a;
     --fg-secondary: #2a2c52;
     --muted: #565a86;
-    --accent-strong: #c2660c;
+    --accent-strong: #059669;
     --rose: #e11d48;
     --emerald: #4b7a52;
     --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.28), 0 2px 18px rgba(246, 169, 52, 0.18);

@@ -33,4 +33,4 @@ export const INITIAL_COURSE_PLANS: CoursePlan[] = [
   },
 ];
 
-export const DEFAULT_WIDGET_IDS = ["focus", "subjects", "todo", "review", "week", "analytics"];
+export const DEFAULT_WIDGET_IDS = ["focus", "todo", "review", "week", "analytics"];

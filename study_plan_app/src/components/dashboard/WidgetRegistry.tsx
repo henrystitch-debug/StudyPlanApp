@@ -1,26 +1,20 @@
 import type { WidgetDef } from "./types";
 import { FocusCard } from "./FocusCard";
-import { SubjectsWidget } from "./SubjectsWidget";
 import { TodoWidget } from "./TodoWidget";
 import { StudyPlanWidget } from "./StudyPlanWidget";
 import { AnalyticsWidget } from "./AnalyticsWidget";
 import { ReviewWidget } from "./ReviewWidget";
 import { WeekWidget } from "./WeekWidget";
 
+// Subject browsing already has a proper home at /subjects (and the "Courses"
+// sidebar link) — the dashboard only needs the daily-focus widgets below.
 export const WIDGET_REGISTRY: WidgetDef[] = [
   {
     id: "focus",
     label: "Focus Session",
     description: "A 25-minute pomodoro timer for deep work.",
-    span: "full",
+    span: "grid",
     render: () => <FocusCard />,
-  },
-  {
-    id: "subjects",
-    label: "Your Subjects",
-    description: "Grid of the subjects you're studying.",
-    span: "full",
-    render: () => <SubjectsWidget />,
   },
   {
     id: "todo",
@@ -28,13 +22,6 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "A quick checklist for today.",
     span: "grid",
     render: () => <TodoWidget />,
-  },
-  {
-    id: "studyplan",
-    label: "Study Plan",
-    description: "Your courses, open to check off tasks.",
-    span: "grid",
-    render: () => <StudyPlanWidget />,
   },
   {
     id: "analytics",
@@ -56,5 +43,12 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "Hours studied and focus sessions logged.",
     span: "grid",
     render: () => <WeekWidget />,
+  },
+  {
+    id: "studyplan",
+    label: "Study Plan",
+    description: "Your courses, open to check off tasks.",
+    span: "grid",
+    render: () => <StudyPlanWidget />,
   },
 ];
