@@ -1,12 +1,17 @@
-import { createStudyplan } from "@/src/lib/ai/studyplan";
-import { saveStudyplan } from "@/src/lib/db/studyplan";
+import { createStudyplan } from "@/lib/ai/studyplan";
+import { saveStudyplan } from "@/lib/db/studyplan";
 
 export async function POST (request: Request){
     try{
 
         const body = await request.json();
+        const { userId, courseId, startDate, endDate, events, capacity, topicIndices } = body;
+
+        if (!userId || !courseId || !startDate || !endDate || !events || !topicIndices || !capacity) {
+            return Response.json({ error: "Needed: user id, course id, start date, end date, events, topic indices" }, { status: 400 });
+        }
         
-        const responseAI = await createStudyplan(body.startDate, body.endDate, body.events, body.topicIndeces, body.capacity);
+        const responseAI = await createStudyplan(startDate, endDate, events, topicIndices, capacity);
 
         if(!responseAI || !responseAI.success){
             return Response.json(
@@ -14,7 +19,7 @@ export async function POST (request: Request){
             { status: 500})
           }
 
-          const responseDb = await saveStudyplan(body.courseId, responseAI.studyplan);
+          const responseDb = await saveStudyplan(userId, courseId, responseAI.studyplan);
 
           if(!responseDb){
             return Response.json(

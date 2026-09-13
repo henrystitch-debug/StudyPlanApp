@@ -1,18 +1,24 @@
-import { saveTopicIndex } from "@/src/lib/db/topicIndex";
+import { saveTopicIndex } from "@/lib/db/topicItem";
 import { createSummaryAndTopicIndex } from "../../../../lib/ai/summary";
-import { saveSummary } from "@/src/lib/db/summary";
-import { getUploadById } from "@/src/lib/db/upload";
+import { saveSummary } from "@/lib/db/summary";
+import { getUploadById } from "@/lib/db/upload";
 
-export async function POST (uploadId: number){
+export async function POST (request: Request){
     try{
+        const body = await request.json();
+        const uploadId = Number(body.uploadId);
+
+        if (!uploadId || Number.isNaN(uploadId)) {
+            return Response.json({ error: "uploadId is required" }, { status: 400 });
+        }
 
         const upload = await getUploadById(uploadId);
 
          if (!upload) {
         return Response.json({ error: "Upload not found" }, { status: 404 });
   }
-
-        const file = new File([upload.data.data], upload.data.filename, { type: upload.data.mimeType });
+        console.log('Buffer length:', upload.data.length, 'filename:', upload.file_name, 'mime:', upload.mime_type);
+        const file = new File([upload.data], upload.filename, { type: upload.mimeType });
 
         if(!file){
             return Response.json(
@@ -35,12 +41,7 @@ export async function POST (uploadId: number){
             { status: 500})
         }
         
-        const fullTopicIndex = {
-            uploadId: -1,
-            items: responseAI.content.topicIndex
-        }
-
-        const responseDbTopicIndex = await saveTopicIndex(uploadId, fullTopicIndex);
+        const responseDbTopicIndex = await saveTopicIndex(uploadId, responseAI.content.topicIndex);
         if(!responseDbTopicIndex){
             return Response.json(
             { error: "Failed saving summary" },
@@ -50,7 +51,7 @@ export async function POST (uploadId: number){
           return Response.json({
             title: responseAI.content.title,
             summary: responseAI.content.summary,
-            topicIndex: responseAI.content.topicIndex 
+            topicIndex: responseAI.content.topicIndex
             });
         }
 

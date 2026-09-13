@@ -1,10 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
-import { summaryAndTopicIndexResponseSchema, type SummaryResult } from "@/src/types/summary";
-import { promptSummary } from "@/src/utils/prompts";
-import { withRetry } from "@/src/utils/retryApiCall";
+import { summaryAndTopicIndexResponseSchema, type SummaryResult } from "@/types/summary";
+import { promptSummary } from "@/utils/prompts";
+import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
-
-const ai = new GoogleGenAI({});
+import { ai } from "./client";
 
 export async function createSummaryAndTopicIndex(file: File): Promise<SummaryResult>{
   const isTextFile =
@@ -19,7 +17,7 @@ export async function createSummaryAndTopicIndex(file: File): Promise<SummaryRes
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    contents = [ //TODO: Prompt anpassen zu dem mit topic index
+    contents = [
       { text: promptSummary },
       { inlineData: { mimeType: file.type, data: base64Data } },
     ];

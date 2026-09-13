@@ -1,14 +1,21 @@
-import { getAllCoursesOfUser } from "@/src/lib/db/course";
+import { getAllCoursesOfUser } from "@/lib/db/course";
 
-export async function GET (uid: number){
+export async function GET(request: Request) {
 
-    const dbResponse = getAllCoursesOfUser(uid);
+    const { searchParams } = new URL(request.url);
+    const uid = Number(searchParams.get("uid"));
 
-    if(!dbResponse){
-        return;
+    if (!uid || Number.isNaN(uid)) {
+        return Response.json({ error: "uid is required" }, { status: 400 });
+    }
+
+    const dbResponse = await getAllCoursesOfUser(uid);
+
+    if (!dbResponse) {
+        return Response.json({ error: "No courses found" }, { status: 404 });
     }
 
     return Response.json(
-        {courses: dbResponse}
-    )
+        { courses: dbResponse }
+    );
 }

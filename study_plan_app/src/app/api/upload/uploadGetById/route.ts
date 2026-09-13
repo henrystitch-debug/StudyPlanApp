@@ -1,14 +1,21 @@
-import { getUploadById } from "@/src/lib/db/upload";
+import { getUploadById } from "@/lib/db/upload";
 
-export async function GET (courseId: number){
+export async function GET(request: Request) {
 
-    const dbResponse = getUploadById(courseId);
+    const { searchParams } = new URL(request.url);
+    const uploadId = Number(searchParams.get("uploadId"));
 
-    if(!dbResponse){
-        return;
+    if (!uploadId || Number.isNaN(uploadId)) {
+        return Response.json({ error: "uploadId is required" }, { status: 400 });
+    }
+
+    const dbResponse = await getUploadById(uploadId);
+
+    if (!dbResponse) {
+        return Response.json({ error: "Upload not found" }, { status: 404 });
     }
 
     return Response.json(
-        {upload: dbResponse}
-    )
+        { upload: dbResponse }
+    );
 }

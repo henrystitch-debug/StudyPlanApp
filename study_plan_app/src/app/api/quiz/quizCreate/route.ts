@@ -1,19 +1,26 @@
 
-import { createQuiz } from "@/src/lib/ai/quiz";
-import { saveQuizItems } from "@/src/lib/db/quizItem";
-import { getUploadById } from "@/src/lib/db/upload";
+import { createQuiz } from "@/lib/ai/quiz";
+import { saveQuizItems } from "@/lib/db/quizItem";
+import { getUploadById } from "@/lib/db/upload";
 
-export async function POST (uploadId: number){
+export async function POST (request: Request){
     try{
+        const body = await request.json();
+        const uploadId = Number(body.uploadId);
+
+        if (!uploadId || Number.isNaN(uploadId)) {
+            return Response.json({ error: "uploadId is required" }, { status: 400 });
+        }
 
         const upload = await getUploadById(uploadId);
-        
+
         if (!upload) {
         return Response.json({ error: "Upload not found" }, { status: 404 });
           }
-        
-        const file = new File([upload.data.data], upload.data.filename, { type: upload.data.mimeType });
-        
+
+        console.log('Buffer length:', upload.data.length, 'filename:', upload.file_name, 'mime:', upload.mime_type);
+        const file = new File([upload.data], upload.filename, { type: upload.mimeType });
+
         if(!file){
             return Response.json(
             {error: "File not found"},
@@ -29,7 +36,13 @@ export async function POST (uploadId: number){
             { status: 500})
           }
 
-          const responseDb = await saveQuizItems(responseAI.quiz.flashcards, responseAI.quiz.mcq, responseAI.quiz.openText);
+          const responseDb = await saveQuizItems(uploadId, responseAI.quiz.flashcards, responseAI.quiz.mcq, responseAI.quiz.openText);
+
+          if(!responseDb){
+            return Response.json(
+            { error: "Failed saving quizzes" },
+            { status: 500})
+          }
 
           return Response.json({
             flashcards: responseAI.quiz.flashcards,
@@ -41,7 +54,7 @@ export async function POST (uploadId: number){
     catch(err){
         console.error(err);
         return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error while creating quizzes" },
             { status: 500})
         }
 }
