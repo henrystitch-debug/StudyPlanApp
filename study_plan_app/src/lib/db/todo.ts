@@ -9,13 +9,14 @@ export async function getToDosById(userId: number){
     'SELECT * FROM to_do_list WHERE user_id = $1 ORDER BY to_do_id',
     [userId]
   );
-  return result.rows;
+  return result.rows ?? null;
 }
 
 // ===============================================
 // UPDATE to do item
 //================================================
 export async function updateToDoItem(userId: number, toDoId: number, text: string, completed: boolean) {
+
   const result = await pool.query(
     `UPDATE to_do_list
      SET text = $1,

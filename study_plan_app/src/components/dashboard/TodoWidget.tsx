@@ -2,86 +2,101 @@
 
 import { useEffect, useState } from "react";
 import { Check, ListChecks, Plus } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
-type Todo = {
+type TodoItem = {
   id: number;
+  label: string;
+  done: boolean;
+};
+
+type RawTodo = {
+  to_do_id: number;
   text: string;
   completed: boolean;
 };
 
-// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 26;
-
 export function TodoWidget() {
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const { userId } = useAuth();
+  const [todos, setTodos] = useState<TodoItem[]>([]);
   const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Lädt dieselben Todos wie die eigene /todos-Seite (GET /api/todo/todoGetAll),
-  // statt einer lokalen, hart codierten Liste.
   useEffect(() => {
-    const fetchTodos = async () => {
+    if (!userId) return;
+
+    async function fetchTodos() {
       try {
-        const response = await fetch(`/api/todo/todoGetAll?uid=${CURRENT_UID}`);
-        const data = await response.json();
-        if (!response.ok) return;
-        const list: Todo[] = (data.todos ?? []).map(
-          (row: { to_do_id: number; text: string; completed: boolean }) => ({
-            id: row.to_do_id,
-            text: row.text,
-            completed: row.completed,
-          })
+        const url = new URL("/api/todo/todosGet", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const rawTodos: RawTodo[] = data.todos ?? data;
+        setTodos(
+          rawTodos.map((t) => ({
+            id: t.to_do_id,
+            label: t.text,
+            done: t.completed,
+          }))
         );
-        setTodos(list);
-      } catch {
-        // Widget bleibt dann einfach leer - die /todos-Seite zeigt Details/Fehler.
+      } catch (err) {
+        console.error("Failed to load todos:", err);
+      } finally {
+        setLoading(false);
       }
-    };
+    }
 
     fetchTodos();
-  }, []);
+  }, [userId]);
 
-  const toggleTodo = async (todo: Todo) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todo.id ? { ...t, completed: !t.completed } : t))
-    );
+  const toggleTodo = async (id: number) => {
+    const target = todos.find((t) => t.id === id);
+    if (!target || !userId) return;
+    const nextDone = !target.done;
+
+    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: nextDone } : t)));
+
     try {
-      await fetch("/api/todo/todoEdit", {
+      const res = await fetch(`/api/todo/todoUpdate`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid: CURRENT_UID,
-          todoId: todo.id,
-          text: todo.text,
-          completed: !todo.completed,
-        }),
+        body: JSON.stringify({ todoId: id, userId, text: target.label, completed: nextDone }),
       });
-    } catch {
-      // TODO: Fehler-Toast, falls relevant.
+      if (!res.ok) throw new Error("Update failed");
+    } catch (err) {
+      console.error(err);
+      setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: !nextDone } : t)));
     }
   };
 
   const addTodo = async () => {
-    const text = draft.trim();
-    if (!text) return;
+    const label = draft.trim();
+    if (!label || !userId) return;
     setDraft("");
+
     try {
-      const response = await fetch("/api/todo/todoCreate", {
+      const res = await fetch("/api/todo/todoCreate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: CURRENT_UID, text }),
+        body: JSON.stringify({ userId, text: label }),
       });
-      const data = await response.json();
-      if (!response.ok) return;
-      setTodos((prev) => [
-        ...prev,
-        { id: data.todo.to_do_id, text: data.todo.text, completed: data.todo.completed },
-      ]);
-    } catch {
-      // TODO: Fehler-Toast, falls relevant.
+      if (!res.ok) throw new Error("Create failed");
+      const data = await res.json();
+      const newTodo: TodoItem = {
+        id: data.todo.to_do_id,
+        label: data.todo.text,
+        done: data.todo.completed,
+      };
+      setTodos((prev) => [...prev, newTodo]);
+    } catch (err) {
+      console.error(err);
+      setDraft(label); // restore the input so the user doesn't lose what they typed
     }
   };
 
-  const doneCount = todos.filter((t) => t.completed).length;
+  const doneCount = todos.filter((t) => t.done).length;
 
   return (
     <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
@@ -98,28 +113,34 @@ export function TodoWidget() {
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5">
-        {todos.map((todo) => (
-          <button
-            key={todo.id}
-            onClick={() => toggleTodo(todo)}
-            className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--overlay)]"
-          >
-            <span
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                todo.completed ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
-              }`}
+        {loading ? (
+          <p className="text-[13px] text-muted">Loading...</p>
+        ) : todos.length === 0 ? (
+          <p className="text-[13px] text-muted">No tasks yet.</p>
+        ) : (
+          todos.map((todo) => (
+            <button
+              key={todo.id}
+              onClick={() => toggleTodo(todo.id)}
+              className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--overlay)]"
             >
-              {todo.completed && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
-            </span>
-            <span
-              className={`text-[14.5px] transition-colors ${
-                todo.completed ? "text-muted line-through" : "text-[var(--text-secondary)]"
-              }`}
-            >
-              {todo.text}
-            </span>
-          </button>
-        ))}
+              <span
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                  todo.done ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
+                }`}
+              >
+                {todo.done && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
+              </span>
+              <span
+                className={`text-[14.5px] transition-colors ${
+                  todo.done ? "text-muted line-through" : "text-[var(--text-secondary)]"
+                }`}
+              >
+                {todo.label}
+              </span>
+            </button>
+          ))
+        )}
       </div>
 
       <div className="mt-3 flex items-center gap-2 border-t border-panel-border pt-3">

@@ -21,6 +21,8 @@ import {
   Clock,
 } from "lucide-react";
 import jsPDF from "jspdf";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
 
 type TopicIndexItem = {
   title: string;
@@ -51,7 +53,7 @@ type CourseDocument = {
   uploadedLabel: string;
   file?: File; // fehlt bei Dokumenten, die aus der DB nachgeladen wurden (kein Datei-Handle im Browser)
   courseId: number;
-  uploadId?: number; // vom Server vergebene Id, Voraussetzung für Summary-/Quiz-Request
+  uploadId?: number;
   isUploading?: boolean;
   uploadError?: string;
   summary?: DocumentSummary;
@@ -105,9 +107,6 @@ type CalendarEvent = {
 function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
   return aStart < bEnd && bStart < aEnd;
 }
-
-// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 26;
 
 function AddCourseCard({
   userId,
@@ -346,6 +345,9 @@ function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) 
 }
 
 export default function CoursesPage() {
+  const router = useRouter();
+  const { userId, isAuthed } = useAuth();
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
@@ -404,12 +406,22 @@ export default function CoursesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isCourseSwitcherOpen]);
 
+  // Not signed in? Bounce to login rather than loading with no real user.
   useEffect(() => {
+    if (isAuthed === false) router.replace("/login");
+  }, [isAuthed, router]);
+
+  useEffect(() => {
+    if (!userId) return; // wait until useAuth has resolved a real user
+
     const fetchCourses = async () => {
       setIsLoadingCourses(true);
       setCoursesError(null);
       try {
-        const response = await fetch(`/api/course/coursesAll?uid=${CURRENT_UID}`);
+        const url = new URL("/api/course/coursesAll", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
@@ -437,7 +449,7 @@ export default function CoursesPage() {
     };
 
     fetchCourses();
-  }, []);
+  }, [userId]);
 
   // Lädt beim Auswählen eines Kurses alle bereits hochgeladenen Dokumente
   // dieses Nutzers für den Kurs aus der DB (GET /api/upload/uploadGetAll) und
@@ -634,7 +646,7 @@ export default function CoursesPage() {
   // hinterher auf Konflikte zu prüfen) und die Themen der ausgewählten
   // Uploads, ruft dann POST /api/studyplan/studyplanCreate auf.
   const handleGenerateStudyPlan = async () => {
-    if (!selectedCourseId || !studyPlanStart || !studyPlanEnd) return;
+    if (!userId || !selectedCourseId || !studyPlanStart || !studyPlanEnd) return;
     if (selectedUploadIds.length === 0) {
       setGenerateStudyPlanError("Bitte mindestens ein Dokument auswählen.");
       return;
@@ -645,7 +657,7 @@ export default function CoursesPage() {
 
     try {
       const eventsResponse = await fetch(
-        `/api/calendar/eventsRange?userId=${CURRENT_UID}&startDate=${studyPlanStart}&endDate=${studyPlanEnd}`
+        `/api/calendar/eventsRange?userId=${userId}&startDate=${studyPlanStart}&endDate=${studyPlanEnd}`
       );
       const eventsData = eventsResponse.ok ? await eventsResponse.json() : { calenderEvents: [] };
       const events: CalendarEvent[] = (eventsData.calenderEvents ?? []).map((row: any) => ({
@@ -656,7 +668,7 @@ export default function CoursesPage() {
       }));
       // "events" fürs KI-Prompt braucht zusätzlich userId/autoCreated (Calender-Schema).
       const eventsForAI = events.map((e) => ({
-        userId: CURRENT_UID,
+        userId,
         date: e.date,
         startTime: e.startTime,
         endTime: e.endTime,
@@ -696,7 +708,7 @@ export default function CoursesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: CURRENT_UID,
+          userId,
           courseId: selectedCourseId,
           startDate: studyPlanStart,
           endDate: studyPlanEnd,
@@ -1240,14 +1252,16 @@ export default function CoursesPage() {
             </button>
           ))}
 
-          <AddCourseCard
-            userId={CURRENT_UID}
-            existingSemesters={existingSemesters}
-            onCreated={(course) => {
-              setCourses((prev) => [...prev, course]);
-              setSelectedCourseId(course.id);
-            }}
-          />
+          {userId && (
+            <AddCourseCard
+              userId={userId}
+              existingSemesters={existingSemesters}
+              onCreated={(course) => {
+                setCourses((prev) => [...prev, course]);
+                setSelectedCourseId(course.id);
+              }}
+            />
+          )}
         </div>
       )}
 
