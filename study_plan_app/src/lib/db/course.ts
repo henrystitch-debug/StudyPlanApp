@@ -4,7 +4,7 @@ import { pool } from "./client";
 // GET ALL courses
 //================================================
 export async function getAllCoursesOfUser(userId : number) {
- 
+
   const result = await pool.query(
     'SELECT course_id, title, semester FROM course WHERE user_id = $1',
     [userId]

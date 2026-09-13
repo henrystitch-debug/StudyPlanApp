@@ -42,7 +42,7 @@ export const studyplanResponseSchema = {
           startTime: { type: "string" },
           endTime: { type: "string" }
         },
-        required: ["taskName", "description", "location", "scheduledDate", "startTime",  "endTime"],
+        required: ["taskName", "description", "location", "scheduledDate", "startTime", "endTime"],
       },
     },
   },

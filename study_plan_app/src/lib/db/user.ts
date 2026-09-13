@@ -70,8 +70,7 @@ export async function verifyPassword(email: string, plainPassword: string) {
 // ===============================================
 // GET user by id
 //================================================
-export async function getUserById(userId: number){
-    
+export async function getUserById(userId: number) {
   const result = await pool.query(
     `SELECT *
      FROM app_user
@@ -80,6 +79,7 @@ export async function getUserById(userId: number){
   );
   return result.rows[0] ?? null;
 }
+
 
 // ===============================================
 // UPDATE user (name)
@@ -135,4 +135,3 @@ export async function deleteUser(userId: number) {
   if(!result.rowCount){ return null}
   return result.rowCount > 0;
 }
-

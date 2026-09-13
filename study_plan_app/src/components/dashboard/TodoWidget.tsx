@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, ListChecks, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type TodoItem = {
@@ -27,14 +27,12 @@ export function TodoWidget() {
 
     async function fetchTodos() {
       try {
-        // TODO: confirm this matches your real route path/response shape
         const url = new URL("/api/todo/todosGet", window.location.origin);
         url.searchParams.set("userId", `${userId}`);
         const res = await fetch(url);
         if (!res.ok) return;
 
         const data = await res.json();
-      
         const rawTodos: RawTodo[] = data.todos ?? data;
         setTodos(
           rawTodos.map((t) => ({
@@ -54,25 +52,24 @@ export function TodoWidget() {
   }, [userId]);
 
   const toggleTodo = async (id: number) => {
-  const target = todos.find((t) => t.id === id);
-  if (!target || !userId) return;
-  const nextDone = !target.done;
+    const target = todos.find((t) => t.id === id);
+    if (!target || !userId) return;
+    const nextDone = !target.done;
 
-  setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: nextDone } : t)));
+    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: nextDone } : t)));
 
-  try {
-    const todoId = id;
-    const res = await fetch(`/api/todo/todoUpdate`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ todoId, userId, text: target.label, completed: nextDone }),
-    });
-    if (!res.ok) throw new Error("Update failed");
-  } catch (err) {
-    console.error(err);
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: !nextDone } : t)));
-  }
-};
+    try {
+      const res = await fetch(`/api/todo/todoUpdate`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ todoId: id, userId, text: target.label, completed: nextDone }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+    } catch (err) {
+      console.error(err);
+      setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: !nextDone } : t)));
+    }
+  };
 
   const addTodo = async () => {
     const label = draft.trim();
@@ -102,9 +99,14 @@ export function TodoWidget() {
   const doneCount = todos.filter((t) => t.done).length;
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5">
+    <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">To Do</h3>
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/15 text-sky-500">
+            <ListChecks size={14} />
+          </span>
+          <h3 className="text-[19px] font-semibold text-foreground font-serif">To-do</h3>
+        </div>
         <span className="text-[12px] text-muted">
           {doneCount}/{todos.length} done
         </span>

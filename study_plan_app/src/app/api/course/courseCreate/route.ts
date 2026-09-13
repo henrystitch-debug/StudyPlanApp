@@ -2,9 +2,12 @@ import { createCourse } from "@/lib/db/course";
 
 export async function POST(request: Request) {
   try {
-    const { userId, title, semester } = await request.json();
+    const body = await request.json();
+    const userId = Number(body.userId);
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const semester = typeof body.semester === "string" ? body.semester.trim() : "";
 
-    if (!userId || !title || !semester) {
+    if (!userId || Number.isNaN(userId) || !title || !semester) {
       return Response.json(
         { error: "userId, title, and semester are required" },
         { status: 400 }
@@ -12,9 +15,14 @@ export async function POST(request: Request) {
     }
 
     const course = await createCourse(userId, title, semester);
+
+    if (!course) {
+      return Response.json({ error: "Error while creating course" }, { status: 500 });
+    }
+
     return Response.json({ course });
   } catch (err) {
     console.error(err);
-    return Response.json({ error: "Error creating course" }, { status: 500 });
+    return Response.json({ error: "Error while creating course" }, { status: 500 });
   }
 }

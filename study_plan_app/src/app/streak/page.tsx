@@ -12,7 +12,7 @@ type StreakData = {
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 // TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 1;
+const CURRENT_UID = 26;
 
 function activityColor(level: number) {
   if (level === 0) return "bg-[var(--overlay)]";

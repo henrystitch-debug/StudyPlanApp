@@ -1,7 +1,7 @@
 "use client";
 
 import { Flame } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useBubblyFonts } from "@/hooks/useBubblyFonts";
 import { WidgetPicker } from "./WidgetPicker";
 import { WIDGET_REGISTRY } from "./WidgetRegistry";
@@ -13,6 +13,7 @@ export function DashboardPage() {
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);
   const [streak, setStreak] = useState<number | null>(null);
   const [name, setName] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   useBubblyFonts();
 
   useEffect(() => {
@@ -27,11 +28,27 @@ export function DashboardPage() {
         const data = await res.json();
         setStreak(data.user?.streak ?? 0);
         setName(data.user?.name ?? null);
-      } catch (err: any){
+      } catch (err) {
         console.error("User fetch failed:", err);
       }
     }
+
+    async function fetchMessage() {
+      try {
+        // TODO: confirm this route now reads userId, not the old uid param
+        const url = new URL("/api/message", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setMessage(data.message ?? null);
+      } catch {
+        // falls back to the name-based greeting below
+      }
+    }
+
     fetchUser();
+    fetchMessage();
   }, [userId]);
 
   const toggleWidget = (id: string) => {
@@ -58,13 +75,18 @@ export function DashboardPage() {
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[13.5px] capitalize text-muted">{today}</p>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-rose/20 bg-rose/10 px-3 py-1 text-[13px] font-medium text-rose">
-          <Flame size={13} />{streak} Day Streak
+          <Flame size={13} />
+          {streak ?? 0} Day Streak
         </span>
       </div>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[32px] font-semibold tracking-tight text-foreground font-serif sm:text-[38px]">
-          Good evening, <span className="text-[var(--accent-strong)]">{displayName}</span>.
+          {message ?? (
+            <>
+              Good evening, <span className="text-[var(--accent-strong)]">{displayName}</span>.
+            </>
+          )}
         </h1>
         <WidgetPicker activeIds={activeWidgetIds} onToggle={toggleWidget} />
       </div>

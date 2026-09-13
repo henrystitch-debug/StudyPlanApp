@@ -1,21 +1,28 @@
 import { deleteUpload } from "@/lib/db/upload";
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ uploadId: string }> }
-) {
-  const { uploadId: uploadIdParam } = await params;
-  const uploadId = Number(uploadIdParam);
+export async function DELETE(request: Request) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const uploadId = Number(searchParams.get("uploadId"));
 
-  if (!uploadId || Number.isNaN(uploadId)) {
-    return Response.json({ error: "uploadId is required" }, { status: 400 });
-  }
+        if (!uploadId || Number.isNaN(uploadId)) {
+            return Response.json({ error: "uploadId is required" }, { status: 400 });
+        }
 
-  const deleted = await deleteUpload(uploadId);
+        const dbResponse = await deleteUpload(uploadId);
 
-  if (!deleted) {
-    return Response.json({ error: "Upload not found" }, { status: 404 });
-  }
+        if (!dbResponse) {
+            return Response.json({ error: "Upload not found" }, { status: 404 });
+        }
 
-  return Response.json({ success: true });
+        return Response.json(
+            { success: true }
+        );
+    } catch (err) {
+        console.error(err);
+        return Response.json(
+            { error: "Error while deleting upload" },
+            { status: 500 }
+        );
+    }
 }

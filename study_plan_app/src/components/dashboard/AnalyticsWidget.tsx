@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Check } from "lucide-react";
+import { BarChart2, ChevronRight, Check } from "lucide-react";
 import type { CoursePlan } from "./types";
 import { INITIAL_COURSE_PLANS } from "./constants";
 
@@ -26,8 +26,13 @@ export function AnalyticsWidget() {
   };
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5">
-      <h3 className="mb-3 text-[19px] font-semibold text-foreground font-serif">Analytics</h3>
+    <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 text-violet-500">
+          <BarChart2 size={14} />
+        </span>
+        <h3 className="text-[19px] font-semibold text-foreground font-serif">Analytics</h3>
+      </div>
 
       <div className="flex flex-1 flex-col gap-2">
         {coursePlans.length === 0 && (
@@ -61,8 +66,11 @@ export function AnalyticsWidget() {
                 />
               </button>
 
-              <div className="h-1 w-full bg-[var(--sunken)]">
-                <div className="h-1 bg-accent transition-all" style={{ width: `${percent}%` }} />
+              <div className="h-1.5 w-full rounded-full bg-[var(--sunken)]">
+                <div
+                  className="h-1.5 rounded-full bg-accent transition-all"
+                  style={{ width: `${percent}%` }}
+                />
               </div>
 
               {open && (

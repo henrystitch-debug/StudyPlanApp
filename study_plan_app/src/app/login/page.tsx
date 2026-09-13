@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   Eye,
@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Flame,
   MailCheck,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   useAuth,
@@ -42,6 +44,7 @@ const CSS = `
     --emerald: #7fae86;
     --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.18), 0 2px 18px rgba(246, 169, 52, 0.12);
 
+    position: relative;
     min-height: 100vh;
     width: 100%;
     background: var(--bg);
@@ -49,6 +52,52 @@ const CSS = `
     font-family: Arial, Helvetica, sans-serif;
     display: grid;
     grid-template-columns: 1.05fr 1fr;
+  }
+
+  /* Light mode — driven by the app-wide .light class on <html> (useTheme). */
+  :root.light .lp-root {
+    --bg: #eef1fa;
+    --panel: #ffffff;
+    --panel-border: rgba(18, 20, 42, 0.1);
+    --overlay: rgba(18, 20, 70, 0.05);
+    --overlay-strong: rgba(18, 20, 70, 0.1);
+    --fg: #12142a;
+    --fg-secondary: #2a2c52;
+    --muted: #565a86;
+    --accent-strong: #059669;
+    --rose: #e11d48;
+    --emerald: #4b7a52;
+    --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.28), 0 2px 18px rgba(246, 169, 52, 0.18);
+  }
+  :root.light .lp-brand::before { opacity: 0.5; }
+  :root.light .lp-brand::after { opacity: 0.5; }
+  /* a plain overlay wash reads as "disabled" on white — lift the active tab instead */
+  :root.light .lp-tab-pill {
+    background: var(--panel);
+    box-shadow: 0 1px 3px rgba(18, 20, 42, 0.12), 0 0 0 1px rgba(18, 20, 42, 0.06);
+  }
+
+  .lp-theme-toggle {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    background: var(--overlay);
+    color: var(--fg-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.2s ease;
+  }
+  .lp-theme-toggle:hover {
+    background: var(--overlay-strong);
+    color: var(--fg);
+    box-shadow: var(--glow-soft);
   }
 
   @media (max-width: 860px) {
@@ -648,9 +697,66 @@ function AppleIcon() {
   );
 }
 
+// The app-wide theme lives on <html> as the `.light` class plus the
+// "study-learn-theme" localStorage key (see AppShell / useTheme). AppShell
+// renders no chrome on /login, so we drive a toggle here that reads and
+// writes exactly those. Same module-store + useSyncExternalStore shape as
+// useAuth, so it hydrates cleanly and every caller stays in sync.
+const THEME_KEY = "study-learn-theme";
+
+const themeListeners = new Set<() => void>();
+let lightCache: boolean | undefined;
+
+function readLight(): boolean {
+  try {
+    const stored = window.localStorage.getItem(THEME_KEY);
+    if (stored) return stored === "light";
+  } catch {
+    /* ignore */
+  }
+  return window.matchMedia("(prefers-color-scheme: light)").matches;
+}
+
+function setLight(next: boolean) {
+  document.documentElement.classList.toggle("light", next);
+  try {
+    window.localStorage.setItem(THEME_KEY, next ? "light" : "dark");
+  } catch {
+    /* ignore */
+  }
+  lightCache = next;
+  themeListeners.forEach((l) => l());
+}
+
+function subscribeTheme(cb: () => void) {
+  themeListeners.add(cb);
+  return () => themeListeners.delete(cb);
+}
+
+function getLightSnapshot(): boolean {
+  if (lightCache === undefined) lightCache = readLight();
+  return lightCache;
+}
+
+function useLoginTheme() {
+  const light = useSyncExternalStore(
+    subscribeTheme,
+    getLightSnapshot,
+    () => false, // server: render dark, correct on the client
+  );
+
+  // Keep <html> in step with what we read (AppShell does this too; harmless).
+  useEffect(() => {
+    document.documentElement.classList.toggle("light", light);
+  }, [light]);
+
+  return { light, toggle: () => setLight(!getLightSnapshot()) };
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { signIn, isAuthed } = useAuth();
+  const { light, toggle: toggleTheme } = useLoginTheme();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -789,7 +895,7 @@ export default function LoginPage() {
 
     setLoading(false);
     setSuccess(true);
-    signIn(data.user.user_id);
+    signIn({ userId: data.user.user_id, email: data.user.email });
     router.replace("/");
     router.refresh();
   }
@@ -830,6 +936,15 @@ export default function LoginPage() {
   return (
     <div className="lp-root">
       <style>{CSS}</style>
+
+      <button
+        type="button"
+        className="lp-theme-toggle"
+        onClick={toggleTheme}
+        aria-label={light ? "Switch to dark mode" : "Switch to light mode"}
+      >
+        {light ? <Moon size={15} /> : <Sun size={15} />}
+      </button>
 
       <div className="lp-brand">
         <div className="lp-orbit" aria-hidden="true">
