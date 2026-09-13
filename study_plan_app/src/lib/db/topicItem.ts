@@ -1,5 +1,5 @@
 import { pool } from "./client";
-import { TopicIndex } from "@/src/types/topicIndex";
+import { TopicIndex } from "@/types/topicIndex";
 
 
 // ===============================================

@@ -1,11 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
 import { summaryAndTopicIndexResponseSchema, type SummaryResult } from "@/types/summary";
 import { promptSummary } from "@/utils/prompts";
 import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
-
-//TODO: WARUM WIRD KEIN API KEY BENUTZT?
-const ai = new GoogleGenAI({});
+import { ai } from "./client";
 
 export async function createSummaryAndTopicIndex(file: File): Promise<SummaryResult>{
   const isTextFile =

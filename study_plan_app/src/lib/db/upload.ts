@@ -45,6 +45,19 @@ export async function getUploadById(uploadId: number){
 }
 
 // ===============================================
+// UPDATE upload name
+//================================================
+export async function changeFilename(uploadId: number, newName: string) {
+  const result = await pool.query(
+    `UPDATE upload
+     SET file_name = $1,
+     WHERE upload_id = $2`,
+    [newName, uploadId]
+  );
+  return result.rows[0] ?? null;
+}
+
+// ===============================================
 // DELETE upload
 //================================================
 export async function deleteUpload(uploadId: number) {

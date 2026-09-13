@@ -41,13 +41,36 @@ export async function saveSummary(uploadId: number, title: string, summary: stri
 }
 
 // ===============================================
-// DELETE summary
+// DELETE summary (and topicIndex)
 //================================================
 export async function deleteSummary(sumId: number) {
-  const result = await pool.query(
-    'DELETE FROM summary WHERE summary_id = $1 RETURNING summary_id',
-    [sumId]
-  );
-  if(!result.rowCount){ return null}
-  return result.rowCount > 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const summaryResult = await client.query(
+      'DELETE FROM summary WHERE summary_id = $1 RETURNING upload_id',
+      [sumId]
+    );
+
+    if (!summaryResult.rowCount) {
+      await client.query('ROLLBACK');
+      return null; 
+    }
+
+    const uploadId = summaryResult.rows[0].upload_id;
+
+    await client.query(
+      'DELETE FROM topic_item WHERE upload_id = $1',
+      [uploadId]
+    );
+
+    await client.query('COMMIT');
+    return true;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
