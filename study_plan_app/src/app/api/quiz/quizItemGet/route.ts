@@ -11,7 +11,7 @@ export async function GET(request: Request) {
         return Response.json({ error: "uploadid, quizType and quizItemId are required" }, { status: 400 });
     }
 
-    const dbResponse = await getQuizItemById(uploadid, quizType, quizItemId);
+    const dbResponse = await getQuizItemById(quizItemId);
 
     if (!dbResponse) {
         return Response.json({ error: "Quiz item not found" }, { status: 404 });

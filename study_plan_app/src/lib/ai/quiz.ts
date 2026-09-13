@@ -1,11 +1,8 @@
-// create flashcards from AI
-import { GoogleGenAI } from "@google/genai";
 import { promptQuiz } from "@/utils/prompts";
 import { quizSchema, QuizResult } from "@/types/quizItem";
 import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
-
-const ai = new GoogleGenAI({});
+import { ai } from "./client";
 
 export async function createQuiz(file: File): Promise<QuizResult>{
   const isTextFile =

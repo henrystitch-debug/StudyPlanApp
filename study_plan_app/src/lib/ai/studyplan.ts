@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import { Calender, CalenderItem } from "@/types/calender";
 import { TopicIndices } from "@/types/topicIndex";
 import { aiStudyplanResponse, studyplanResponseSchema } from "@/types/studyplan";
@@ -6,8 +5,8 @@ import { promptStudyplan } from "@/utils/prompts";
 import { StudyplanResult } from "@/types/studyplan";
 import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
+import { ai } from "./client";
 
-const ai = new GoogleGenAI({});
 
 export async function createStudyplan(startDate: Date, endDate: Date, calendarEvents: Calender, topicIndeces: TopicIndices, capacity: number): Promise<StudyplanResult>{
 
@@ -48,12 +47,10 @@ export async function createStudyplan(startDate: Date, endDate: Date, calendarEv
         }
     }
 
-    // Gemini liefert laut studyplanResponseSchema ein Objekt { items: [...] },
-    // aiStudyplanResponse erwartet aber ein reines Array - vorher wurde hier
-    // das ganze Objekt validiert, was immer mit einem ZodError fehlschlug.
-    const parsed = aiStudyplanResponse.parse(JSON.parse(response.text).items);
+    const parsedJSON = JSON.parse(response.text);
+    const items = aiStudyplanResponse.parse(parsedJSON.items);
 
-    const fullItems = parsed.map((item) => ({
+    const fullItems = items.map((item) => ({
         ...item,
         isCompleted: false,
     }));

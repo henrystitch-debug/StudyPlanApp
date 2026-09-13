@@ -5,6 +5,7 @@ studyplanId: z.number(),
 taskName: z.string(),
 description: z. string(),
 location: z.string(),
+uploadId: z.string(),
 isCompleted: z.boolean(),
 scheduledDate: z.string(),
 startTime: z.string(),
@@ -17,6 +18,7 @@ const aiStudyItem = z.object({
   taskName: z.string(),
   description: z.string(),
   location: z.string(),
+  uploadId: z.number(),
   scheduledDate: z.string(),
   startTime: z.string(),
   endTime: z.string()
@@ -35,9 +37,10 @@ export const studyplanResponseSchema = {
           taskName: { type: "string" },
           description: { type: "string" },
           location: { type: "string" },
+          uploadId: { type: "number"},
           scheduledDate: { type: "string", description: "ISO-Datum, z.B. 2026-09-14" },
-          startTime: { type: "string", description: "HH:MM, z.B. 14:00" },
-          endTime: { type: "string", description: "HH:MM, z.B. 15:30" }
+          startTime: { type: "string" },
+          endTime: { type: "string" }
         },
         required: ["taskName", "description", "location", "scheduledDate", "startTime", "endTime"],
       },

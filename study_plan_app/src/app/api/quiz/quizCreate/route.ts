@@ -37,6 +37,12 @@ export async function POST (request: Request){
 
           const responseDb = await saveQuizItems(uploadId, responseAI.quiz.flashcards, responseAI.quiz.mcq, responseAI.quiz.openText);
 
+          if(!responseDb){
+            return Response.json(
+            { error: "Failed saving quizzes" },
+            { status: 500})
+          }
+
           return Response.json({
             flashcards: responseAI.quiz.flashcards,
             mcq: responseAI.quiz.mcq,
@@ -47,7 +53,7 @@ export async function POST (request: Request){
     catch(err){
         console.error(err);
         return Response.json(
-            { error: "Error while extracting file" },
+            { error: "Error while creating quizzes" },
             { status: 500})
         }
 }

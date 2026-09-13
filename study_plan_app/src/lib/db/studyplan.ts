@@ -14,16 +14,6 @@ export async function getStudyplanById(courseId: number){
   return result.rows;
 }
 
-function calculateEstimatedMinutes(startTime: string, endTime: string): number {
-  const toMinutes = (time: string): number => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
-  };
-
-  const diff = toMinutes(endTime) - toMinutes(startTime);
-  return diff >= 0 ? diff : diff + 24 * 60; // handles the (unlikely) case of crossing midnight
-}
-
 // ===============================================
 // SAVE Studyplan
 //================================================
@@ -73,19 +63,19 @@ export async function saveStudyplan(
       );
       const eventId = eventResult.rows[0].event_id;
 
-      const estimatedMinutes = calculateEstimatedMinutes(item.startTime, item.endTime);
-
       const itemResult = await client.query(
-        `INSERT INTO study_plan_item (study_plan_item_id, study_plan_id, task_name, description, location, is_completed, estimated_minutes, event_id)
-         VALUES (DEFAULT, $1, $2, $3, $4, FALSE, $5, $6)
+        `INSERT INTO study_plan_item (study_plan_item_id, study_plan_id, task_name, description, location, is_completed, event_id, upload_id, start_time, end_time)
+         VALUES (DEFAULT, $1, $2, $3, $4, FALSE, $5, $6, $7, $8)
          RETURNING *`,
         [
           studyPlanId,
           item.taskName,
           item.description,
           item.location,
-          estimatedMinutes,
           eventId,
+          item.uploadId,
+          item.startTime,
+          item.endTime
         ]
       );
       savedItems.push(itemResult.rows[0]);
@@ -102,7 +92,7 @@ export async function saveStudyplan(
 }
 
 // ===============================================
-// SAVE Studyplan
+// DELETE Studyplan
 //================================================
 export async function deleteStudyplan(courseId: number) {
   const client = await pool.connect();
@@ -142,6 +132,61 @@ export async function deleteStudyplan(courseId: number) {
   } catch (err) {
     await client.query('ROLLBACK');
     return { success: false, error: (err as Error).message };
+  } finally {
+    client.release();
+  }
+}
+
+
+// ===============================================
+// UPDATE Studyplan Item
+//================================================
+export async function updateStudyPlanItemCompletion(
+  studyPlanItemId: number,
+  isCompleted: boolean
+) {
+  const result = await pool.query(
+    `UPDATE study_plan_item
+     SET is_completed = $1
+     WHERE study_plan_item_id = $2
+     RETURNING *`,
+    [isCompleted, studyPlanItemId]
+  );
+  return result.rows[0] ?? null;
+}
+
+
+// ===============================================
+// DELETE Studyplan Item
+//================================================
+export async function deleteStudyPlanItem(studyPlanItemId: number) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const itemResult = await client.query(
+      `DELETE FROM study_plan_item
+       WHERE study_plan_item_id = $1
+       RETURNING event_id`,
+      [studyPlanItemId]
+    );
+
+    if (!itemResult.rowCount) {
+      await client.query('ROLLBACK');
+      return false; // item didn't exist
+    }
+
+    const eventId = itemResult.rows[0].event_id;
+
+    if (eventId) {
+      await client.query('DELETE FROM event WHERE event_id = $1', [eventId]);
+    }
+
+    await client.query('COMMIT');
+    return true;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
