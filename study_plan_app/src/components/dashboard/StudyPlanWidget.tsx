@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Check, X, Plus } from "lucide-react";
+import { ChevronRight, Check, ClipboardList, X, Plus } from "lucide-react";
 import type { CoursePlan } from "./types";
 import { INITIAL_COURSE_PLANS } from "./constants";
 
@@ -48,8 +48,13 @@ export function StudyPlanWidget() {
   };
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5">
-      <h3 className="mb-3 text-[19px] font-semibold text-foreground font-serif">Study Plan</h3>
+    <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/15 text-teal-500">
+          <ClipboardList size={14} />
+        </span>
+        <h3 className="text-[19px] font-semibold text-foreground font-serif">Study Plan</h3>
+      </div>
 
       <div className="flex flex-1 flex-col gap-2">
         {coursePlans.length === 0 && (

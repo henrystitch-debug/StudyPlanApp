@@ -12,7 +12,7 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     id: "focus",
     label: "Focus Session",
     description: "A 25-minute pomodoro timer for deep work.",
-    span: "full",
+    span: "grid",
     render: () => <FocusCard />,
   },
   {
@@ -28,13 +28,6 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "A quick checklist for today.",
     span: "grid",
     render: () => <TodoWidget />,
-  },
-  {
-    id: "studyplan",
-    label: "Study Plan",
-    description: "Your courses, open to check off tasks.",
-    span: "grid",
-    render: () => <StudyPlanWidget />,
   },
   {
     id: "analytics",
@@ -56,5 +49,12 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "Hours studied and focus sessions logged.",
     span: "grid",
     render: () => <WeekWidget />,
+  },
+  {
+    id: "studyplan",
+    label: "Study Plan",
+    description: "Your courses, open to check off tasks.",
+    span: "grid",
+    render: () => <StudyPlanWidget />,
   },
 ];
