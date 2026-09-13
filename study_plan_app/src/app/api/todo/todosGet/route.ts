@@ -1,4 +1,4 @@
-import { getUserById } from "@/lib/db/user";
+import { getToDosById } from "@/lib/db/todo";
 
 export async function GET(request: Request) {
 
@@ -9,13 +9,13 @@ export async function GET(request: Request) {
         return Response.json({ error: "userId" }, { status: 400 });
     }
 
-    const dbResponse = await getUserById(userId);
+    const dbResponse = await getToDosById(userId);
 
     if (!dbResponse) {
-        return Response.json({ error: "User not found" }, { status: 404 });
+        return Response.json({ error: "ToDos not found" }, { status: 404 });
     }
 
     return Response.json(
-        { user: dbResponse }
+        { todos: dbResponse }
     );
 }

@@ -72,7 +72,7 @@ export default function CalendarPage() {
         const rawEvents: RawEvent[] = eventsData.events ?? eventsData;
         const mappedEvents = rawEvents.map(toCalendarEvent);
         setAllEvents(mappedEvents);
-        console.log("Sample mapped event:", mappedEvents[0]);
+
 
         const coursesUrl = new URL("http://localhost:3000/api/course/coursesAll");
         coursesUrl.searchParams.set("userId", `${userId}`);
@@ -81,11 +81,7 @@ export default function CalendarPage() {
         const coursesData = await coursesRes.json();
         const coursesList = coursesData.courses ?? coursesData;
         setCourses(coursesList);
-        console.log("Sample course:", coursesList[0]);
 
-        //TODO DELETE
-        console.log("Courses:", coursesData);
-        console.log("Sample event courseId:", allEvents[0]?.courseId);
       } catch (err) {
         console.error(err);
         setError("Could not load your calendar.");

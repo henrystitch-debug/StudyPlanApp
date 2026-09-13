@@ -1,19 +1,44 @@
 "use client";
 
 import { Flame } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useBubblyFonts } from "@/hooks/useBubblyFonts";
 import { WidgetPicker } from "./WidgetPicker";
 import { WIDGET_REGISTRY } from "./WidgetRegistry";
 import { DEFAULT_WIDGET_IDS } from "./constants";
+import { useAuth } from "@/hooks/useAuth";
 
 export function DashboardPage() {
+  const { userId } = useAuth();
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);
+  const [streak, setStreak] = useState<number | null>(null);
+  const [name, setName] = useState<string | null>(null);
   useBubblyFonts();
+
+  useEffect(() => {
+    if (!userId) return;
+
+    async function fetchUser() {
+      try {
+        const url = new URL("/api/user/userGet", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setStreak(data.user?.streak ?? 0);
+        setName(data.user?.name ?? null);
+      } catch (err: any){
+        console.error("User fetch failed:", err);
+      }
+    }
+    fetchUser();
+  }, [userId]);
 
   const toggleWidget = (id: string) => {
     setActiveWidgetIds((prev) => (prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]));
   };
+
+  const displayName = name ?? "there";
 
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
@@ -33,13 +58,13 @@ export function DashboardPage() {
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[13.5px] capitalize text-muted">{today}</p>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-rose/20 bg-rose/10 px-3 py-1 text-[13px] font-medium text-rose">
-          <Flame size={13} />0 Day Streak
+          <Flame size={13} />{streak} Day Streak
         </span>
       </div>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[32px] font-semibold tracking-tight text-foreground font-serif sm:text-[38px]">
-          Good evening, <span className="text-[var(--accent-strong)]">Manar</span>.
+          Good evening, <span className="text-[var(--accent-strong)]">{displayName}</span>.
         </h1>
         <WidgetPicker activeIds={activeWidgetIds} onToggle={toggleWidget} />
       </div>

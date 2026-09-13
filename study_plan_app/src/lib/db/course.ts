@@ -27,12 +27,12 @@ export async function getCourseInfo(userId: number, courseId: number) {
 // ===============================================
 // CREATE course
 //================================================
-export async function createCourse(title: string, description: string, semester: string) {
+export async function createCourse(userId: number, title: string, semester: string) {
   const result = await pool.query(
-    `INSERT INTO course (id, title, description, semester)
+    `INSERT INTO course (course_id, user_id, title, semester)
      VALUES (DEFAULT, $1, $2, $3)
      RETURNING *`,
-    [title, description, semester]
+    [userId, title, semester]
   );
   return result.rows[0];
 }
@@ -40,16 +40,15 @@ export async function createCourse(title: string, description: string, semester:
 // ===============================================
 // UPDATE course
 //================================================
-export async function updateCourse(courseId: number, title: string, description: string, semester: string){
+export async function updateCourse(courseId: number, title: string, semester: string){
 
      const result = await pool.query(
     `UPDATE course
      SET title = $1,
-     description = $2,
-     semester = $3
-     WHERE course_id = $4
+     semester = $2
+     WHERE course_id = $3
      RETURNING *`,
-    [title, description, semester, courseId]
+    [title, semester, courseId]
   );
   return result.rows[0] ?? null;
 }
