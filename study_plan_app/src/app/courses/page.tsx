@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Upload,
   File as FileIconLucide,
@@ -15,6 +15,8 @@ import {
   CalendarPlus,
   ChevronDown,
   ChevronUp,
+  Layers,
+  Pencil,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -66,6 +68,7 @@ type Course = {
   id: number;
   name: string;
   semester?: string;
+  description?: string;
 };
 
 type StudyPlanItem = {
@@ -117,6 +120,7 @@ function AddCourseCard({
         id: data.course.course_id,
         name: data.course.title,
         semester: data.course.semester,
+        description: data.course.description,
       });
       setTitle("");
       setSemester("");
@@ -178,6 +182,100 @@ function AddCourseCard({
             setError(null);
           }}
           className="rounded-md px-2 py-1 text-[11.5px] text-muted hover:text-[var(--text-secondary)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditCourseForm({
+  course,
+  existingSemesters,
+  onSaved,
+  onCancel,
+}: {
+  course: Course;
+  existingSemesters: string[];
+  onSaved: (course: Course) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(course.name);
+  const [semester, setSemester] = useState(course.semester ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/course/courseUpdate", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId: course.id,
+          title,
+          semester,
+          description: course.description ?? "",
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Kurs konnte nicht gespeichert werden");
+      }
+
+      onSaved({
+        id: data.course.course_id,
+        name: data.course.title,
+        semester: data.course.semester,
+        description: data.course.description,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-xl border border-panel-border bg-panel p-3.5">
+      <input
+        autoFocus
+        placeholder="Course name"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        className="rounded-md border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      <input
+        list="edit-semester-options"
+        placeholder="Semester (optional)"
+        value={semester}
+        onChange={(e) => setSemester(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        className="rounded-md border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      <datalist id="edit-semester-options">
+        {existingSemesters.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+      {error && <p className="text-[11px] text-rose">{error}</p>}
+      <div className="mt-1 flex gap-1.5">
+        <button
+          onClick={handleSave}
+          disabled={isSaving || !title.trim()}
+          className="flex-1 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1.5 text-[12.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
+        >
+          {isSaving ? "Saving…" : "Save"}
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-md px-2.5 py-1.5 text-[12.5px] text-muted hover:text-[var(--text-secondary)]"
         >
           Cancel
         </button>
@@ -255,6 +353,22 @@ export default function CoursesPage() {
   const [isGeneratingStudyPlan, setIsGeneratingStudyPlan] = useState(false);
   const [generateStudyPlanError, setGenerateStudyPlanError] = useState<string | null>(null);
 
+  const [isCourseSwitcherOpen, setIsCourseSwitcherOpen] = useState(false);
+  const courseSwitcherRef = useRef<HTMLDivElement>(null);
+  const [isEditingCourse, setIsEditingCourse] = useState(false);
+
+  // Schließt das "Switch courses"-Dropdown bei Klick außerhalb.
+  useEffect(() => {
+    if (!isCourseSwitcherOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (courseSwitcherRef.current && !courseSwitcherRef.current.contains(e.target as Node)) {
+        setIsCourseSwitcherOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isCourseSwitcherOpen]);
+
   useEffect(() => {
     const fetchCourses = async () => {
       setIsLoadingCourses(true);
@@ -267,17 +381,19 @@ export default function CoursesPage() {
           throw new Error(data.error ?? "Kurse konnten nicht geladen werden");
         }
 
-        // Echte DB-Zeilen: { course_id, title, semester }.
+        // Echte DB-Zeilen: { course_id, title, semester, description }.
         const list: Course[] = (data.courses ?? []).map(
-          (row: { course_id: number; title: string; semester?: string }) => ({
+          (row: { course_id: number; title: string; semester?: string; description?: string }) => ({
             id: row.course_id,
             name: row.title,
             semester: row.semester,
+            description: row.description,
           })
         );
 
+        // NEU: kein automatisches Vorauswählen mehr - beim ersten Aufruf der
+        // Seite sollen erst alle Kurse als Grid gezeigt werden.
         setCourses(list);
-        setSelectedCourseId((current) => current ?? list[0]?.id ?? null);
       } catch (err) {
         setCoursesError(err instanceof Error ? err.message : "Unbekannter Fehler");
       } finally {
@@ -504,6 +620,7 @@ export default function CoursesPage() {
   };
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
+  const otherCourses = courses.filter((c) => c.id !== selectedCourseId);
   const existingSemesters = Array.from(
     new Set(courses.map((c) => c.semester).filter((s): s is string => Boolean(s)))
   );
@@ -766,25 +883,103 @@ export default function CoursesPage() {
         Your Courses
       </h1>
 
-      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-        {isLoadingCourses ? (
-          <div className="flex h-full min-h-[132px] items-center justify-center rounded-xl border border-panel-border bg-panel text-[12.5px] text-muted">
-            Loading courses…
+      {isLoadingCourses ? (
+        <div className="mb-8 flex min-h-[132px] items-center justify-center rounded-xl border border-panel-border bg-panel text-[12.5px] text-muted">
+          Loading courses…
+        </div>
+      ) : coursesError ? (
+        <div className="mb-8 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-6 text-center text-[13px] text-rose">
+          {coursesError}
+        </div>
+      ) : selectedCourse && isEditingCourse ? (
+        <div className="mb-8">
+          <EditCourseForm
+            course={selectedCourse}
+            existingSemesters={existingSemesters}
+            onSaved={(updated) => {
+              setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+              setIsEditingCourse(false);
+            }}
+            onCancel={() => setIsEditingCourse(false)}
+          />
+        </div>
+      ) : selectedCourse ? (
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-muted">Current course</p>
+            <p className="text-[17px] font-medium capitalize text-foreground font-serif">
+              {selectedCourse.name}
+              {selectedCourse.semester && (
+                <span className="ml-2 text-[12.5px] font-sans font-normal text-muted">
+                  {selectedCourse.semester}
+                </span>
+              )}
+            </p>
           </div>
-        ) : coursesError ? (
-          <div className="col-span-full rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-6 text-center text-[13px] text-rose">
-            {coursesError}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsEditingCourse(true)}
+              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-3 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+            >
+              <Pencil size={14} />
+              Edit
+            </button>
+
+            <div className="relative" ref={courseSwitcherRef}>
+            <button
+              onClick={() => setIsCourseSwitcherOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-3 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+            >
+              <Layers size={14} />
+              Switch courses
+              <ChevronDown size={14} />
+            </button>
+
+            {isCourseSwitcherOpen && (
+              <div className="absolute right-0 z-10 mt-2 w-60 rounded-xl border border-panel-border bg-panel p-1.5 shadow-lg">
+                {otherCourses.length === 0 ? (
+                  <p className="px-2.5 py-2 text-[12.5px] text-muted">No other courses yet</p>
+                ) : (
+                  otherCourses.map((course) => (
+                    <button
+                      key={course.id}
+                      onClick={() => {
+                        setSelectedCourseId(course.id);
+                        setIsCourseSwitcherOpen(false);
+                      }}
+                      className="flex w-full flex-col items-start gap-0.5 rounded-lg px-2.5 py-2 text-left hover:bg-[var(--overlay)]"
+                    >
+                      <span className="text-[13px] capitalize text-foreground">{course.name}</span>
+                      {course.semester && (
+                        <span className="text-[11px] text-muted">{course.semester}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+                <div className="my-1 border-t border-panel-border" />
+                <button
+                  onClick={() => {
+                    setSelectedCourseId(null);
+                    setIsCourseSwitcherOpen(false);
+                  }}
+                  className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-muted hover:bg-[var(--overlay)] hover:text-[var(--text-secondary)]"
+                >
+                  <Plus size={14} />
+                  Show all courses
+                </button>
+              </div>
+            )}
+            </div>
           </div>
-        ) : (
-          courses.map((course) => (
+        </div>
+      ) : (
+        <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          {courses.map((course) => (
             <button
               key={course.id}
               onClick={() => setSelectedCourseId(course.id)}
-              className={`overflow-hidden rounded-xl border bg-panel text-left transition-colors ${
-                course.id === selectedCourseId
-                  ? "border-accent"
-                  : "border-panel-border hover:border-accent"
-              }`}
+              className="overflow-hidden rounded-xl border border-panel-border bg-panel text-left transition-colors hover:border-accent"
             >
               <div className="h-20 w-full bg-gradient-to-br from-rose via-rose-500 to-[#2a1030]" />
               <div className="p-3">
@@ -796,18 +991,18 @@ export default function CoursesPage() {
                 </p>
               </div>
             </button>
-          ))
-        )}
+          ))}
 
-        <AddCourseCard
-          userId={CURRENT_UID}
-          existingSemesters={existingSemesters}
-          onCreated={(course) => {
-            setCourses((prev) => [...prev, course]);
-            setSelectedCourseId(course.id);
-          }}
-        />
-      </div>
+          <AddCourseCard
+            userId={CURRENT_UID}
+            existingSemesters={existingSemesters}
+            onCreated={(course) => {
+              setCourses((prev) => [...prev, course]);
+              setSelectedCourseId(course.id);
+            }}
+          />
+        </div>
+      )}
 
       {selectedCourse && (
         <>
