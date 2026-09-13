@@ -1,0 +1,1 @@
+Diese Datei wurde erstellt, da der Ordner nicht ohne Datei existieren kann.  Sie kann gelöscht werden, sobald eine Datei in diesem Ordner erstellt wurde.
