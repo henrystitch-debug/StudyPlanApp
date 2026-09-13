@@ -14,10 +14,6 @@ import {
 } from "lucide-react";
 import {
   useAuth,
-  registerAccount,
-  verifyCredentials,
-  accountExists,
-  resetPassword,
   isAllowedEmail,
   isValidPassword,
   ADMIN_ACCOUNT,
@@ -711,59 +707,93 @@ export default function LoginPage() {
   const reqLetter = /[A-Za-z]/.test(password);
   const reqNumber = /[0-9]/.test(password);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setTouched(true);
-    setFormError(null);
-    if (!canSubmit || loading) return;
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setTouched(true);
+  setFormError(null);
+  if (!canSubmit || loading) return;
 
-    if (mode === "signin" && !verifyCredentials(email, password)) {
-      setFormError("Wrong email or password.");
-      return;
-    }
-
-    // Step 1 of a reset: pretend to send the email, then reveal the
-    // new-password step. We never say whether the account exists.
-    if (mode === "reset" && resetStep === "request") {
-      setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
-        setTouched(false);
-        setResetStep("confirm");
-      }, 900);
-      return;
-    }
-
-    if (mode === "reset" && resetStep === "confirm") {
-      if (email.trim().toLowerCase() === ADMIN_ACCOUNT.email) {
-        setFormError("The demo admin password can't be changed.");
-        return;
-      }
-      if (!accountExists(email)) {
-        setFormError("No account found for that email.");
-        return;
-      }
-    }
-
+  if (mode === "signin") {
     setLoading(true);
-    setSuccess(false);
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json(); // parsed once, reused below either way
+    if (!res.ok) {
+      setLoading(false);
+      setFormError(data.error ?? "Wrong email or password.");
+      return;
+    }
+
+    setLoading(false);
+    setSuccess(true);
+    signIn({ userId: data.user.user_id, email: data.user.email });
+    router.replace("/");
+    router.refresh();
+    return;
+  }
+
+  // Step 1 of a reset: pretend to send the email, then reveal the
+  // new-password step. We never say whether the account exists.
+  if (mode === "reset" && resetStep === "request") {
+    setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      setSuccess(true);
+      setTouched(false);
+      setResetStep("confirm");
+    }, 900);
+    return;
+  }
 
-      if (mode === "reset") {
-        resetPassword(email, password);
-        return; // stay on the page, user signs in with the new password
-      }
+  if (mode === "reset" && resetStep === "confirm") {
+  if (email.trim().toLowerCase() === ADMIN_ACCOUNT.email) {
+    setFormError("The demo admin password can't be changed.");
+    return;
+  }
 
-      if (mode === "signup") {
-        registerAccount(email.trim(), password);
-      }
-      signIn(email.trim().toLowerCase());
-      router.replace("/");
-      router.refresh();
-    }, 1100);
-  };
+  setLoading(true);
+  setSuccess(false);
+
+  const res = await fetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim(), newPassword: password }),
+  });
+  const data = await res.json();
+  setLoading(false);
+
+  if (!res.ok) {
+    setFormError(data.error ?? "Could not reset your password.");
+    return;
+  }
+
+  setSuccess(true);
+  return;
+}
+
+  if (mode === "signup") {
+    setLoading(true);
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), password, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setLoading(false);
+      setFormError(data.error ?? "Error creating account.");
+      return;
+    }
+
+    setLoading(false);
+    setSuccess(true);
+    signIn(data.user.user_id);
+    router.replace("/");
+    router.refresh();
+  }
+};
 
   const switchMode = (next: Mode) => {
     if (next === mode) return;
@@ -776,23 +806,10 @@ export default function LoginPage() {
     setResetStep("request");
   };
 
-  // Placeholder social sign-in – no real OAuth yet, just drops you in with a
-  // demo account so the buttons do something. Swap for Auth.js later.
+    //  TODO: make social login work
   const handleSocial = (provider: "google" | "apple") => {
-    if (loading) return;
-    const demoEmail = provider === "google" ? "you@gmail.com" : "you@icloud.com";
-    setFormError(null);
-    setLoading(true);
-    setSuccess(false);
-    setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
-      registerAccount(demoEmail, "");
-      signIn(demoEmail);
-      router.replace("/");
-      router.refresh();
-    }, 900);
-  };
+  setFormError(`${provider === "google" ? "Google" : "Apple"} sign-in isn't set up yet.`);
+};
 
   const fillDemo = () => {
     setEmail(ADMIN_ACCOUNT.email);

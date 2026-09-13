@@ -62,7 +62,8 @@ export async function saveStudyplan(
         [userId, courseId, item.scheduledDate, item.startTime, item.endTime, item.description]
       );
       const eventId = eventResult.rows[0].event_id;
-
+    
+      
       const itemResult = await client.query(
         `INSERT INTO study_plan_item (study_plan_item_id, study_plan_id, task_name, description, location, is_completed, event_id, upload_id, start_time, end_time)
          VALUES (DEFAULT, $1, $2, $3, $4, FALSE, $5, $6, $7, $8)

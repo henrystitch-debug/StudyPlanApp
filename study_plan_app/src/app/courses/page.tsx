@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Upload,
   File as FileIconLucide,
@@ -13,6 +14,7 @@ import {
   Check,
 } from "lucide-react";
 import jsPDF from "jspdf";
+import { useAuth } from "@/hooks/useAuth";
 
 type TopicIndexItem = {
   title: string;
@@ -43,7 +45,7 @@ type CourseDocument = {
   uploadedLabel: string;
   file: File;
   courseId: number;
-  uploadId?: number; // vom Server vergebene Id, Voraussetzung für Summary-/Quiz-Request
+  uploadId?: number;
   isUploading?: boolean;
   uploadError?: string;
   summary?: DocumentSummary;
@@ -58,9 +60,6 @@ type Course = {
   id: number;
   name: string;
 };
-
-// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 1;
 
 function AddCourseCard() {
   // TODO: Mockup ohne Funktion – hier später ein Modal/Formular öffnen,
@@ -113,6 +112,9 @@ function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) 
 }
 
 export default function CoursesPage() {
+  const router = useRouter();
+  const { userId, isAuthed } = useAuth();
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
@@ -121,22 +123,33 @@ export default function CoursesPage() {
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Not signed in? Bounce to login rather than loading with no real user.
   useEffect(() => {
+    if (isAuthed === false) router.replace("/login");
+  }, [isAuthed, router]);
+
+  useEffect(() => {
+    if (!userId) return; // wait until useAuth has resolved a real user
+
     const fetchCourses = async () => {
       setIsLoadingCourses(true);
       setCoursesError(null);
       try {
-        const response = await fetch(`/api/course/coursesAll?uid=${CURRENT_UID}`);
+        const url = new URL("/api/course/coursesAll", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.error ?? "Kurse konnten nicht geladen werden");
         }
 
-        // Dummy-Backend liefert aktuell nur Namen ohne Id (string[]),
-        // daher wird die Id hier vorübergehend aus dem Index gebildet.
         const list: Course[] = (data.courses ?? []).map(
-          (name: string, index: number) => ({ id: index + 1, name })
+          (c: { course_id: number; title: string }) => ({
+            id: c.course_id,
+            name: c.title,
+          })
         );
 
         setCourses(list);
@@ -149,7 +162,7 @@ export default function CoursesPage() {
     };
 
     fetchCourses();
-  }, []);
+  }, [userId]);
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
   const visibleDocuments = documents.filter((d) => d.courseId === selectedCourseId);
@@ -173,6 +186,7 @@ export default function CoursesPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("courseId", String(selectedCourseId)); // was missing entirely
 
       const response = await fetch("/api/upload/uploadPost", {
         method: "POST",
@@ -327,6 +341,10 @@ export default function CoursesPage() {
       );
     }
   };
+
+  if (!isAuthed) {
+    return null; // redirect effect above is already sending them to /login
+  }
 
   return (
     <>

@@ -15,7 +15,7 @@ type SidebarProps = {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { email, signOut } = useAuth();
+  const { email, userId, signOut } = useAuth();
 
   const navRef = useRef<HTMLElement>(null);
   const [overflowing, setOverflowing] = useState(false);
