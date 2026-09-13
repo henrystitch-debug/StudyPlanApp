@@ -1,8 +1,7 @@
-import { getUserById } from "@/lib/db/user";
+import { getToDosById } from "@/lib/db/todo";
 
 export async function GET(request: Request) {
     try {
-        // uid wird aus dem Query-Parameter der URL gelesen, z.B. /api/streak?uid=1
         const { searchParams } = new URL(request.url);
         const uid = Number(searchParams.get("uid"));
 
@@ -10,19 +9,19 @@ export async function GET(request: Request) {
             return Response.json({ error: "uid is required" }, { status: 400 });
         }
 
-        const dbResponse = await getUserById(uid);
+        const dbResponse = await getToDosById(uid);
 
         if (!dbResponse) {
-            return Response.json({ error: "No streak data found" }, { status: 404 });
+            return Response.json({ error: "No to-do found" }, { status: 404 });
         }
 
         return Response.json(
-            { streak: dbResponse.streak, longestStreak: dbResponse.longestStreak }
+            { todos: dbResponse }
         );
     } catch (err) {
         console.error(err);
         return Response.json(
-            { error: "Error while fetching streak" },
+            { error: "Error while fetching to-do" },
             { status: 500 }
         );
     }
