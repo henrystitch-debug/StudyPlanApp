@@ -1,32 +1,29 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarEvent, EventType, RawEvent } from "@/types/calendar";
+import { Course } from "@/types/course";
 
-type EventType = "event" | "task" | "holiday" | "reminder";
 
-type CalendarEvent = {
-  id: string;
-  day: number; // Tag im Monat, 1-31
-  title: string;
-  time?: string;
-  type: EventType;
-};
+const userId = 27; //TODO: Replace later
 
-// TODO: Platzhalter-Termine – später aus der Datenbank laden
-// (z.B. StudyPlanItem + eigene Events/Reminders), statt hart codiert.
-const MOCK_EVENTS: CalendarEvent[] = [
-  { id: "e1", day: 3, title: "Salsa Course", time: "7 pm", type: "event" },
-  { id: "e2", day: 8, title: "Statistics Exam", type: "task" },
-  { id: "e3", day: 12, title: "Public Holiday", type: "holiday" },
-  { id: "e4", day: 18, title: "Submit essay draft", type: "reminder" },
-  { id: "e5", day: 21, title: "Study group", time: "5 pm", type: "event" },
-];
+function toCalendarEvent(e: RawEvent): CalendarEvent {
+  return {
+    id: e.event_id,
+    date: new Date(e.event_date),
+    title: e.description,
+    startTime: e.start_time,
+    endTime: e.end_time,
+    type: e.event_type,
+    courseId: e.course_id,
+  };
+}
 
 const TYPE_META: Record<EventType, { label: string; dotClass: string }> = {
-  event: { label: "Events", dotClass: "bg-accent" },
-  task: { label: "Tasks", dotClass: "bg-rose" },
-  holiday: { label: "Holidays", dotClass: "bg-emerald-400" },
-  reminder: { label: "Reminders", dotClass: "bg-[var(--text-secondary)]" },
+  lecture: { label: "Lectures", dotClass: "bg-accent" },
+  exam: { label: "Exams", dotClass: "bg-rose" },
+  study_session: { label: "Study sessions", dotClass: "bg-emerald-400" },
+  other: { label: "Other", dotClass: "bg-[var(--text-secondary)]" },
 };
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -49,12 +46,56 @@ export default function CalendarPage() {
   const [year, setYear] = useState(today.getFullYear());
   const [monthIndex, setMonthIndex] = useState(today.getMonth());
   const [activeTypes, setActiveTypes] = useState<EventType[]>([
-    "event",
-    "task",
-    "holiday",
-    "reminder",
+    "lecture",
+    "exam",
+    "study_session",
+    "other",
   ]);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  const [allEvents, setAllEvents] = useState<CalendarEvent[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [activeCourseIds, setActiveCourseIds] = useState<number[]>([]); // empty = all courses
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+
+        const eventsUrl = new URL("http://localhost:3000/api/calendar/eventsAll");
+        eventsUrl.searchParams.set("userId", `${userId}`);
+        const eventsRes = await fetch(eventsUrl);
+        if (!eventsRes.ok) throw new Error("Failed to fetch events");
+        const eventsData = await eventsRes.json();
+        const rawEvents: RawEvent[] = eventsData.events ?? eventsData;
+        const mappedEvents = rawEvents.map(toCalendarEvent);
+        setAllEvents(mappedEvents);
+        console.log("Sample mapped event:", mappedEvents[0]);
+
+        const coursesUrl = new URL("http://localhost:3000/api/course/coursesAll");
+        coursesUrl.searchParams.set("userId", `${userId}`);
+        const coursesRes = await fetch(coursesUrl);
+        if (!coursesRes.ok) throw new Error("Failed to fetch courses");
+        const coursesData = await coursesRes.json();
+        const coursesList = coursesData.courses ?? coursesData;
+        setCourses(coursesList);
+        console.log("Sample course:", coursesList[0]);
+
+        //TODO DELETE
+        console.log("Courses:", coursesData);
+        console.log("Sample event courseId:", allEvents[0]?.courseId);
+      } catch (err) {
+        console.error(err);
+        setError("Could not load your calendar.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
 
   const cells = useMemo(
     () => getMonthGrid(year, monthIndex),
@@ -66,7 +107,20 @@ export default function CalendarPage() {
     year: "numeric",
   });
 
-  const visibleEvents = MOCK_EVENTS.filter((e) => activeTypes.includes(e.type));
+  const visibleEvents = useMemo(
+    () =>
+      allEvents.filter((e) => {
+        const matchesType = activeTypes.includes(e.type);
+        const matchesCourse =
+          activeCourseIds.length === 0 ||
+          e.courseId === null ||
+          activeCourseIds.includes(e.courseId);
+        const matchesMonth =
+          e.date.getFullYear() === year && e.date.getMonth() === monthIndex;
+        return matchesType && matchesCourse && matchesMonth;
+      }),
+    [allEvents, activeTypes, activeCourseIds, year, monthIndex]
+  );
 
   const goToMonth = (delta: number) => {
     const newDate = new Date(year, monthIndex + delta, 1);
@@ -81,13 +135,29 @@ export default function CalendarPage() {
     );
   };
 
+  const toggleCourse = (courseId: number) => {
+    setActiveCourseIds((prev) =>
+      prev.includes(courseId)
+        ? prev.filter((id) => id !== courseId)
+        : [...prev, courseId]
+    );
+  };
+
   const eventsForSelectedDay = selectedDay
-    ? visibleEvents.filter((e) => e.day === selectedDay)
+    ? visibleEvents.filter((e) => e.date.getDate() === selectedDay)
     : [];
+
+  if (loading) {
+    return <p className="text-[13px] text-muted">Loading calendar...</p>;
+  }
+
+  if (error) {
+    return <p className="text-[13px] text-[var(--text-danger)]">{error}</p>;
+  }
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => goToMonth(-1)}
@@ -130,6 +200,30 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      {courses.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          <span className="text-[11px] uppercase tracking-wider text-muted self-center">
+            Courses
+          </span>
+          {courses.map((course) => {
+            const isSelected = activeCourseIds.includes(course.course_id);
+            return (
+              <button
+                key={course.course_id}
+                onClick={() => toggleCourse(course.course_id)}
+                className={`rounded-full border px-2.5 py-1 text-[11.5px] transition-colors ${
+                  isSelected
+                    ? "border-accent bg-[var(--overlay-strong)] text-foreground"
+                    : "border-panel-border text-muted opacity-50"
+                }`}
+              >
+                {course.title}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="mb-2 grid grid-cols-7 gap-1.5">
         {WEEKDAY_LABELS.map((d) => (
           <div
@@ -146,7 +240,7 @@ export default function CalendarPage() {
           if (day === null) {
             return <div key={idx} className="aspect-square" />;
           }
-          const dayEvents = visibleEvents.filter((e) => e.day === day);
+          const dayEvents = visibleEvents.filter((e) => e.date.getDate() === day);
           const isToday =
             day === today.getDate() &&
             monthIndex === today.getMonth() &&
@@ -210,8 +304,10 @@ export default function CalendarPage() {
                 <span className="flex-1 text-[13px] text-[var(--text-secondary)]">
                   {e.title}
                 </span>
-                {e.time && (
-                  <span className="text-[11px] text-muted">{e.time}</span>
+                {e.startTime && e.endTime && (
+                  <span className="text-[11px] text-muted">
+                    {e.startTime} – {e.endTime}
+                  </span>
                 )}
               </div>
             ))}

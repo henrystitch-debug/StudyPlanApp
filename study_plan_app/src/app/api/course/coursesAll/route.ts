@@ -3,13 +3,13 @@ import { getAllCoursesOfUser } from "@/lib/db/course";
 export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
-    const uid = Number(searchParams.get("uid"));
+    const userId = Number(searchParams.get("userId"));
 
-    if (!uid || Number.isNaN(uid)) {
-        return Response.json({ error: "uid is required" }, { status: 400 });
+    if (!userId || Number.isNaN(userId)) {
+        return Response.json({ error: "userId is required" }, { status: 400 });
     }
 
-    const dbResponse = await getAllCoursesOfUser(uid);
+    const dbResponse = await getAllCoursesOfUser(userId);
 
     if (!dbResponse) {
         return Response.json({ error: "No courses found" }, { status: 404 });
