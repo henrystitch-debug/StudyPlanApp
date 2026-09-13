@@ -79,7 +79,26 @@ type StudyPlanItem = {
   startTime: string;
   endTime: string;
   isCompleted?: boolean;
+  hasConflict?: boolean;
 };
+
+type CourseUpload = {
+  id: number;
+  name: string;
+};
+
+type CalendarEvent = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+};
+
+// Zwei Zeitspannen (HH:MM, gleicher Tag vorausgesetzt) überlappen sich, wenn
+// jede vor dem Ende der anderen beginnt.
+function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+  return aStart < bEnd && bStart < aEnd;
+}
 
 // TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
 const CURRENT_UID = 26;
@@ -352,6 +371,14 @@ export default function CoursesPage() {
   const [studyPlanCapacity, setStudyPlanCapacity] = useState(5);
   const [isGeneratingStudyPlan, setIsGeneratingStudyPlan] = useState(false);
   const [generateStudyPlanError, setGenerateStudyPlanError] = useState<string | null>(null);
+  const [conflictCount, setConflictCount] = useState(0);
+
+  // Uploads des Kurses, aus denen man auswählen kann, welche als Grundlage
+  // für den Studyplan dienen sollen (statt automatisch alle zu nehmen).
+  const [courseUploads, setCourseUploads] = useState<CourseUpload[]>([]);
+  const [isLoadingCourseUploads, setIsLoadingCourseUploads] = useState(false);
+  const [courseUploadsError, setCourseUploadsError] = useState<string | null>(null);
+  const [selectedUploadIds, setSelectedUploadIds] = useState<number[]>([]);
 
   const [isCourseSwitcherOpen, setIsCourseSwitcherOpen] = useState(false);
   const courseSwitcherRef = useRef<HTMLDivElement>(null);
@@ -451,6 +478,7 @@ export default function CoursesPage() {
     const fetchStudyPlan = async () => {
       setIsLoadingStudyPlan(true);
       setStudyPlanError(null);
+      setConflictCount(0);
       try {
         const response = await fetch(`/api/studyplan/studyplanGet?courseId=${selectedCourseId}`);
         const data = await response.json();
@@ -489,30 +517,81 @@ export default function CoursesPage() {
     fetchStudyPlan();
   }, [selectedCourseId]);
 
+  // Lädt beim Öffnen des Studyplan-Formulars alle Uploads des Kurses, damit man
+  // auswählen kann, auf deren Basis der Studyplan erstellt werden soll
+  // (GET /api/upload/uploadGetAll?courseId=...). Standardmäßig sind alle
+  // ausgewählt.
+  useEffect(() => {
+    if (!showStudyPlanForm || !selectedCourseId) return;
+
+    const fetchCourseUploads = async () => {
+      setIsLoadingCourseUploads(true);
+      setCourseUploadsError(null);
+      try {
+        const response = await fetch(`/api/upload/uploadGetAll?courseId=${selectedCourseId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Uploads konnten nicht geladen werden");
+        }
+
+        const uploads: CourseUpload[] = (data.uploads ?? []).map(
+          (row: { upload_id: number; file_name: string }) => ({ id: row.upload_id, name: row.file_name })
+        );
+        setCourseUploads(uploads);
+        setSelectedUploadIds(uploads.map((u) => u.id));
+      } catch (err) {
+        setCourseUploadsError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      } finally {
+        setIsLoadingCourseUploads(false);
+      }
+    };
+
+    fetchCourseUploads();
+  }, [showStudyPlanForm, selectedCourseId]);
+
+  const toggleUploadSelected = (uploadId: number) => {
+    setSelectedUploadIds((prev) =>
+      prev.includes(uploadId) ? prev.filter((id) => id !== uploadId) : [...prev, uploadId]
+    );
+  };
+
   // Erzeugt einen neuen Studyplan: holt zuerst bestehende Kalendertermine im
-  // Zeitraum (damit nicht doppelt belegt wird) und alle Themen des Kurses,
-  // ruft dann POST /api/studyplan/studyplanCreate auf.
+  // Zeitraum (damit nicht doppelt belegt wird, und um den generierten Plan
+  // hinterher auf Konflikte zu prüfen) und die Themen der ausgewählten
+  // Uploads, ruft dann POST /api/studyplan/studyplanCreate auf.
   const handleGenerateStudyPlan = async () => {
     if (!selectedCourseId || !studyPlanStart || !studyPlanEnd) return;
+    if (selectedUploadIds.length === 0) {
+      setGenerateStudyPlanError("Bitte mindestens ein Dokument auswählen.");
+      return;
+    }
 
     setIsGeneratingStudyPlan(true);
     setGenerateStudyPlanError(null);
 
     try {
       const eventsResponse = await fetch(
-        `/api/calendar/calenderRangeEvents?userId=${CURRENT_UID}&startDate=${studyPlanStart}&endDate=${studyPlanEnd}`
+        `/api/calendar/eventsRange?userId=${CURRENT_UID}&startDate=${studyPlanStart}&endDate=${studyPlanEnd}`
       );
       const eventsData = eventsResponse.ok ? await eventsResponse.json() : { calenderEvents: [] };
-      const events = (eventsData.calenderEvents ?? []).map((row: any) => ({
-        userId: CURRENT_UID,
+      const events: CalendarEvent[] = (eventsData.calenderEvents ?? []).map((row: any) => ({
         date: row.event_date ?? row.date,
         startTime: row.start_time ?? row.startTime,
         endTime: row.end_time ?? row.endTime,
-        autoCreated: row.ai_generated ?? row.autoCreated ?? false,
         title: row.description ?? row.title ?? "",
       }));
+      // "events" fürs KI-Prompt braucht zusätzlich userId/autoCreated (Calender-Schema).
+      const eventsForAI = events.map((e) => ({
+        userId: CURRENT_UID,
+        date: e.date,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        autoCreated: true,
+        title: e.title,
+      }));
 
-      const topicsResponse = await fetch(`/api/topicIndexOfCourse?courseId=${selectedCourseId}`);
+      const topicsResponse = await fetch(`/api/topicItem/topicIndicesGet?courseId=${selectedCourseId}`);
       const topicsData = await topicsResponse.json();
 
       if (!topicsResponse.ok) {
@@ -520,9 +599,12 @@ export default function CoursesPage() {
       }
 
       // Flache Zeilen (ein Eintrag pro Thema, mit upload_id) nach upload_id
-      // gruppieren, wie es topicIndeces (indexItem[][]) erwartet.
+      // gruppieren - die KI braucht die uploadId pro Gruppe, um sie den
+      // generierten Einträgen zuzuordnen (studyplanResponseSchema verlangt sie).
+      // Nur die ausgewählten Uploads werden berücksichtigt.
       const grouped = new Map<number, TopicIndexItem[]>();
-      for (const row of topicsData.topicItems ?? []) {
+      for (const row of topicsData.topicIndices ?? []) {
+        if (!selectedUploadIds.includes(row.upload_id)) continue;
         const list = grouped.get(row.upload_id) ?? [];
         list.push({
           title: row.title,
@@ -532,7 +614,10 @@ export default function CoursesPage() {
         });
         grouped.set(row.upload_id, list);
       }
-      const topicIndeces = Array.from(grouped.values());
+      const topicIndices = Array.from(grouped.entries()).map(([uploadId, items]) => ({
+        uploadId,
+        items,
+      }));
 
       const response = await fetch("/api/studyplan/studyplanCreate", {
         method: "POST",
@@ -542,8 +627,8 @@ export default function CoursesPage() {
           courseId: selectedCourseId,
           startDate: studyPlanStart,
           endDate: studyPlanEnd,
-          events,
-          topicIndeces,
+          events: eventsForAI,
+          topicIndices,
           capacity: studyPlanCapacity,
         }),
       });
@@ -554,7 +639,19 @@ export default function CoursesPage() {
         throw new Error(data.error ?? "Studyplan konnte nicht erstellt werden");
       }
 
-      setStudyPlanItems(data.studyplan ?? []);
+      // Prüft, ob die KI trotz Anweisung doch eine bestehende Kalender-Zeit
+      // getroffen hat, und markiert betroffene Einträge.
+      const items: StudyPlanItem[] = (data.studyplan ?? []).map((item: StudyPlanItem) => ({
+        ...item,
+        hasConflict: events.some(
+          (e) =>
+            e.date === item.scheduledDate &&
+            timeRangesOverlap(item.startTime, item.endTime, e.startTime, e.endTime)
+        ),
+      }));
+
+      setConflictCount(items.filter((i) => i.hasConflict).length);
+      setStudyPlanItems(items);
       setShowStudyPlanForm(false);
     } catch (err) {
       setGenerateStudyPlanError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -1106,6 +1203,37 @@ export default function CoursesPage() {
 
             {showStudyPlanForm && (
               <div className="mb-3 flex flex-col gap-2.5 rounded-xl border border-panel-border bg-panel p-3.5">
+                <div>
+                  <p className="mb-1.5 text-[11.5px] text-muted">
+                    Base the plan on these documents
+                  </p>
+                  {isLoadingCourseUploads ? (
+                    <p className="text-[12.5px] text-muted">Loading…</p>
+                  ) : courseUploadsError ? (
+                    <p className="text-[12px] text-rose">{courseUploadsError}</p>
+                  ) : courseUploads.length === 0 ? (
+                    <p className="text-[12.5px] text-muted">
+                      No documents uploaded for this course yet.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col gap-1">
+                      {courseUploads.map((upload) => (
+                        <li key={upload.id}>
+                          <label className="flex items-center gap-2 text-[12.5px] text-[var(--text-secondary)]">
+                            <input
+                              type="checkbox"
+                              checked={selectedUploadIds.includes(upload.id)}
+                              onChange={() => toggleUploadSelected(upload.id)}
+                              className="accent-accent"
+                            />
+                            {upload.name}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <div className="flex flex-wrap items-end gap-2.5">
                   <label className="flex flex-col gap-1 text-[11.5px] text-muted">
                     Start date
@@ -1137,7 +1265,12 @@ export default function CoursesPage() {
                   </label>
                   <button
                     onClick={handleGenerateStudyPlan}
-                    disabled={isGeneratingStudyPlan || !studyPlanStart || !studyPlanEnd}
+                    disabled={
+                      isGeneratingStudyPlan ||
+                      !studyPlanStart ||
+                      !studyPlanEnd ||
+                      selectedUploadIds.length === 0
+                    }
                     className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-3 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
                   >
                     {isGeneratingStudyPlan ? (
@@ -1165,31 +1298,47 @@ export default function CoursesPage() {
                 </p>
               </div>
             ) : (
-              <ul className="flex flex-col gap-1.5">
-                {studyPlanItems.map((item, i) => (
-                  <li
-                    key={i}
-                    className="rounded-lg border border-panel-border bg-panel px-3 py-2.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[13px] font-medium text-foreground">
-                        {item.taskName}
+              <>
+                {conflictCount > 0 && (
+                  <p className="mb-2 text-[12.5px] text-rose">
+                    ⚠ {conflictCount} session{conflictCount > 1 ? "s" : ""} overlap
+                    {conflictCount === 1 ? "s" : ""} with an existing calendar entry — check the
+                    highlighted items below.
+                  </p>
+                )}
+                <ul className="flex flex-col gap-1.5">
+                  {studyPlanItems.map((item, i) => (
+                    <li
+                      key={i}
+                      className={`rounded-lg border px-3 py-2.5 ${
+                        item.hasConflict
+                          ? "border-rose/40 bg-rose/5"
+                          : "border-panel-border bg-panel"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[13px] font-medium text-foreground">
+                          {item.taskName}
+                        </p>
+                        {(item.scheduledDate || item.startTime) && (
+                          <span
+                            className={`shrink-0 text-[11px] ${item.hasConflict ? "text-rose" : "text-muted"}`}
+                          >
+                            {item.hasConflict && "⚠ "}
+                            {item.scheduledDate} {item.startTime && `${item.startTime}–${item.endTime}`}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">
+                        {item.description}
                       </p>
-                      {(item.scheduledDate || item.startTime) && (
-                        <span className="shrink-0 text-[11px] text-muted">
-                          {item.scheduledDate} {item.startTime && `${item.startTime}–${item.endTime}`}
-                        </span>
+                      {item.location && (
+                        <p className="mt-0.5 text-[11.5px] text-muted">{item.location}</p>
                       )}
-                    </div>
-                    <p className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">
-                      {item.description}
-                    </p>
-                    {item.location && (
-                      <p className="mt-0.5 text-[11.5px] text-muted">{item.location}</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </section>
 

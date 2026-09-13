@@ -1,31 +1,92 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Plus } from "lucide-react";
-import type { TodoItem } from "./types";
-import { INITIAL_TODOS } from "./constants";
+
+type Todo = {
+  id: number;
+  text: string;
+  completed: boolean;
+};
+
+// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
+const CURRENT_UID = 26;
 
 export function TodoWidget() {
-  const [todos, setTodos] = useState<TodoItem[]>(INITIAL_TODOS);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [draft, setDraft] = useState("");
 
-  const toggleTodo = (id: string) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  // Lädt dieselben Todos wie die eigene /todos-Seite (GET /api/todo/todoGetAll),
+  // statt einer lokalen, hart codierten Liste.
+  useEffect(() => {
+    const fetchTodos = async () => {
+      try {
+        const response = await fetch(`/api/todo/todoGetAll?uid=${CURRENT_UID}`);
+        const data = await response.json();
+        if (!response.ok) return;
+        const list: Todo[] = (data.todos ?? []).map(
+          (row: { to_do_id: number; text: string; completed: boolean }) => ({
+            id: row.to_do_id,
+            text: row.text,
+            completed: row.completed,
+          })
+        );
+        setTodos(list);
+      } catch {
+        // Widget bleibt dann einfach leer - die /todos-Seite zeigt Details/Fehler.
+      }
+    };
+
+    fetchTodos();
+  }, []);
+
+  const toggleTodo = async (todo: Todo) => {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === todo.id ? { ...t, completed: !t.completed } : t))
+    );
+    try {
+      await fetch("/api/todo/todoEdit", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: CURRENT_UID,
+          todoId: todo.id,
+          text: todo.text,
+          completed: !todo.completed,
+        }),
+      });
+    } catch {
+      // TODO: Fehler-Toast, falls relevant.
+    }
   };
 
-  const addTodo = () => {
-    const label = draft.trim();
-    if (!label) return;
-    setTodos((prev) => [...prev, { id: `t${Date.now()}`, label, done: false }]);
+  const addTodo = async () => {
+    const text = draft.trim();
+    if (!text) return;
     setDraft("");
+    try {
+      const response = await fetch("/api/todo/todoCreate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: CURRENT_UID, text }),
+      });
+      const data = await response.json();
+      if (!response.ok) return;
+      setTodos((prev) => [
+        ...prev,
+        { id: data.todo.to_do_id, text: data.todo.text, completed: data.todo.completed },
+      ]);
+    } catch {
+      // TODO: Fehler-Toast, falls relevant.
+    }
   };
 
-  const doneCount = todos.filter((t) => t.done).length;
+  const doneCount = todos.filter((t) => t.completed).length;
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">To Do</h3>
+        <h3 className="text-[19px] font-semibold text-foreground font-serif">To-do</h3>
         <span className="text-[12px] text-muted">
           {doneCount}/{todos.length} done
         </span>
@@ -35,22 +96,22 @@ export function TodoWidget() {
         {todos.map((todo) => (
           <button
             key={todo.id}
-            onClick={() => toggleTodo(todo.id)}
+            onClick={() => toggleTodo(todo)}
             className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--overlay)]"
           >
             <span
               className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                todo.done ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
+                todo.completed ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
               }`}
             >
-              {todo.done && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
+              {todo.completed && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
             </span>
             <span
               className={`text-[14.5px] transition-colors ${
-                todo.done ? "text-muted line-through" : "text-[var(--text-secondary)]"
+                todo.completed ? "text-muted line-through" : "text-[var(--text-secondary)]"
               }`}
             >
-              {todo.label}
+              {todo.text}
             </span>
           </button>
         ))}
