@@ -17,6 +17,8 @@ import {
   ChevronUp,
   Layers,
   Pencil,
+  CalendarDays,
+  Clock,
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -47,7 +49,7 @@ type CourseDocument = {
   id: string;
   name: string;
   uploadedLabel: string;
-  file: File;
+  file?: File; // fehlt bei Dokumenten, die aus der DB nachgeladen wurden (kein Datei-Handle im Browser)
   courseId: number;
   uploadId?: number; // vom Server vergebene Id, Voraussetzung für Summary-/Quiz-Request
   isUploading?: boolean;
@@ -62,6 +64,8 @@ type CourseDocument = {
   downloadError?: string;
   isSummaryTextExpanded?: boolean;
   isTopicIndexExpanded?: boolean;
+  isDeleting?: boolean;
+  deleteError?: string;
 };
 
 type Course = {
@@ -72,6 +76,8 @@ type Course = {
 };
 
 type StudyPlanItem = {
+  id?: number; // echte study_plan_item_id - Voraussetzung für "Mark as done"
+  uploadId?: number;
   taskName: string;
   description: string;
   location: string;
@@ -347,6 +353,8 @@ export default function CoursesPage() {
 
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isLoadingPersistedUploads, setIsLoadingPersistedUploads] = useState(false);
+  const [persistedUploadsError, setPersistedUploadsError] = useState<string | null>(null);
 
   const [summaryTitles, setSummaryTitles] = useState<
     { id: number; summaryId: number; title: string }[]
@@ -431,6 +439,58 @@ export default function CoursesPage() {
     fetchCourses();
   }, []);
 
+  // Lädt beim Auswählen eines Kurses alle bereits hochgeladenen Dokumente
+  // dieses Nutzers für den Kurs aus der DB (GET /api/upload/uploadGetAll) und
+  // ergänzt sie in der Dokumentenliste, damit sie auch nach einem Reload noch
+  // sichtbar sind (statt nur die in dieser Sitzung neu hochgeladenen).
+  useEffect(() => {
+    if (!selectedCourseId) return;
+
+    const fetchPersistedUploads = async () => {
+      setIsLoadingPersistedUploads(true);
+      setPersistedUploadsError(null);
+      try {
+        const response = await fetch(`/api/upload/uploadGetAll?courseId=${selectedCourseId}`);
+        const data = await response.json();
+
+        if (response.status === 404) {
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Dokumente konnten nicht geladen werden");
+        }
+
+        const rows: { upload_id: number; file_name: string; uploaded_at?: string }[] =
+          data.uploads ?? [];
+
+        setDocuments((prev) => {
+          const existingUploadIds = new Set(
+            prev.map((d) => d.uploadId).filter((id): id is number => id !== undefined)
+          );
+          const additions: CourseDocument[] = rows
+            .filter((row) => !existingUploadIds.has(row.upload_id))
+            .map((row) => ({
+              id: `upload-${row.upload_id}`,
+              name: row.file_name,
+              uploadedLabel: row.uploaded_at
+                ? new Date(row.uploaded_at).toLocaleDateString()
+                : "",
+              courseId: selectedCourseId,
+              uploadId: row.upload_id,
+            }));
+          return additions.length > 0 ? [...prev, ...additions] : prev;
+        });
+      } catch (err) {
+        setPersistedUploadsError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      } finally {
+        setIsLoadingPersistedUploads(false);
+      }
+    };
+
+    fetchPersistedUploads();
+  }, [selectedCourseId]);
+
   // Lädt beim Auswählen eines Kurses die Titel bereits gespeicherter
   // Zusammenfassungen (GET /api/summary/summaryGetTitles). Die Route selbst
   // kennt aktuell keinen courseId-Filter - sie liefert immer alle Titel -
@@ -496,13 +556,26 @@ export default function CoursesPage() {
         // is_completed, ...) - Datum/Uhrzeit stehen dort nicht mit drin, die Route
         // joint aktuell nicht gegen die verknüpften Kalender-Events.
         const items: StudyPlanItem[] = (data.studyPlan ?? []).map(
-          (row: { task_name: string; description: string; location: string; is_completed: boolean }) => ({
+          (row: {
+            study_plan_item_id: number;
+            upload_id?: number;
+            task_name: string;
+            description: string;
+            location: string;
+            is_completed: boolean;
+            start_time?: string;
+            end_time?: string;
+          }) => ({
+            id: row.study_plan_item_id,
+            uploadId: row.upload_id,
             taskName: row.task_name,
             description: row.description,
             location: row.location,
+            // scheduledDate steht nicht auf study_plan_item, sondern nur auf dem
+            // verknüpften event - die Route joint aktuell nicht dagegen.
             scheduledDate: "",
-            startTime: "",
-            endTime: "",
+            startTime: row.start_time ? row.start_time.slice(0, 5) : "",
+            endTime: row.end_time ? row.end_time.slice(0, 5) : "",
             isCompleted: row.is_completed,
           })
         );
@@ -660,6 +733,36 @@ export default function CoursesPage() {
     }
   };
 
+  // Markiert einen Studyplan-Eintrag als (nicht) erledigt per
+  // PUT /api/studyplan/studyItemEdit.
+  const handleToggleStudyItemDone = async (item: StudyPlanItem) => {
+    if (!item.id) return;
+
+    const nextCompleted = !item.isCompleted;
+    setStudyPlanItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, isCompleted: nextCompleted } : i))
+    );
+
+    try {
+      const response = await fetch("/api/studyplan/studyItemEdit", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, isCompleted: nextCompleted }),
+      });
+
+      if (!response.ok) {
+        // bei Fehlschlag den optimistischen Toggle zurückrollen
+        setStudyPlanItems((prev) =>
+          prev.map((i) => (i.id === item.id ? { ...i, isCompleted: item.isCompleted } : i))
+        );
+      }
+    } catch {
+      setStudyPlanItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, isCompleted: item.isCompleted } : i))
+      );
+    }
+  };
+
   // Lädt die volle Zusammenfassung zu einem Titel per GET /api/summary/summaryGet.
   const handleOpenSavedSummary = async (id: number) => {
     if (openSummaryId === id) {
@@ -723,6 +826,14 @@ export default function CoursesPage() {
   );
   const visibleDocuments = documents.filter((d) => d.courseId === selectedCourseId);
 
+  // Für die Anzeige "aus welchem Dokument stammt dieser Studyplan-Eintrag" -
+  // documents enthält inzwischen alle Uploads des Kurses (Session + DB).
+  const uploadNameById = new Map(
+    visibleDocuments
+      .filter((d): d is CourseDocument & { uploadId: number } => d.uploadId !== undefined)
+      .map((d) => [d.uploadId, d.name])
+  );
+
   const handleFileUpload = async (file: File) => {
     if (!selectedCourseId) return;
 
@@ -779,8 +890,47 @@ export default function CoursesPage() {
     }
   };
 
-  const handleRemove = (id: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== id));
+  // Löscht ein Dokument per DELETE /api/upload/uploadDelete aus der DB (kaskadiert
+  // dort auf zugehörige Summaries/Topic-Index/Quiz) und danach aus der Anzeige.
+  // Existiert noch keine uploadId (Upload läuft noch/ist fehlgeschlagen), wird
+  // nur lokal entfernt, da serverseitig noch nichts gespeichert wurde.
+  const handleRemove = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc) return;
+
+    if (!doc.uploadId) {
+      setDocuments((prev) => prev.filter((d) => d.id !== id));
+      return;
+    }
+
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, isDeleting: true, deleteError: undefined } : d))
+    );
+
+    try {
+      const response = await fetch(`/api/upload/uploadDelete?uploadId=${doc.uploadId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Dokument konnte nicht gelöscht werden");
+      }
+
+      setDocuments((prev) => prev.filter((d) => d.id !== id));
+    } catch (err) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                isDeleting: false,
+                deleteError: err instanceof Error ? err.message : "Unbekannter Fehler",
+              }
+            : d
+        )
+      );
+    }
   };
 
   const toggleSummaryTextExpanded = (id: string) => {
@@ -1306,37 +1456,92 @@ export default function CoursesPage() {
                     highlighted items below.
                   </p>
                 )}
-                <ul className="flex flex-col gap-1.5">
-                  {studyPlanItems.map((item, i) => (
-                    <li
-                      key={i}
-                      className={`rounded-lg border px-3 py-2.5 ${
-                        item.hasConflict
-                          ? "border-rose/40 bg-rose/5"
-                          : "border-panel-border bg-panel"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[13px] font-medium text-foreground">
-                          {item.taskName}
-                        </p>
-                        {(item.scheduledDate || item.startTime) && (
-                          <span
-                            className={`shrink-0 text-[11px] ${item.hasConflict ? "text-rose" : "text-muted"}`}
+                <ul className="flex flex-col gap-2">
+                  {studyPlanItems.map((item, i) => {
+                    const sourceName = item.uploadId ? uploadNameById.get(item.uploadId) : undefined;
+                    return (
+                      <li
+                        key={item.id ?? i}
+                        className={`flex gap-3 rounded-xl border px-3.5 py-3 transition-colors ${
+                          item.hasConflict
+                            ? "border-rose/40 bg-rose/5"
+                            : item.isCompleted
+                            ? "border-panel-border bg-[var(--sunken)]"
+                            : "border-panel-border bg-panel hover:border-accent/40"
+                        }`}
+                      >
+                        <button
+                          onClick={() => handleToggleStudyItemDone(item)}
+                          disabled={!item.id}
+                          aria-label={item.isCompleted ? "Mark as not done" : "Mark as done"}
+                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-40 ${
+                            item.isCompleted
+                              ? "border-accent bg-accent"
+                              : "border-panel-border bg-[var(--sunken)]"
+                          }`}
+                        >
+                          {item.isCompleted && (
+                            <Check size={12} strokeWidth={3} className="text-accent-foreground" />
+                          )}
+                        </button>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                            <p
+                              className={`text-[13.5px] font-medium ${
+                                item.isCompleted ? "text-muted line-through" : "text-foreground"
+                              }`}
+                            >
+                              {item.taskName}
+                            </p>
+                            {(item.scheduledDate || item.startTime) && (
+                              <span
+                                className={`flex shrink-0 items-center gap-1 text-[11px] ${
+                                  item.hasConflict ? "text-rose" : "text-muted"
+                                }`}
+                              >
+                                {item.hasConflict && "⚠"}
+                                {item.scheduledDate && (
+                                  <>
+                                    <CalendarDays size={11} />
+                                    {item.scheduledDate}
+                                  </>
+                                )}
+                                {item.startTime && (
+                                  <>
+                                    <Clock size={11} className="ml-1" />
+                                    {item.startTime}–{item.endTime}
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </div>
+
+                          <p
+                            className={`mt-1 text-[12.5px] leading-snug ${
+                              item.isCompleted ? "text-muted" : "text-[var(--text-secondary)]"
+                            }`}
                           >
-                            {item.hasConflict && "⚠ "}
-                            {item.scheduledDate} {item.startTime && `${item.startTime}–${item.endTime}`}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">
-                        {item.description}
-                      </p>
-                      {item.location && (
-                        <p className="mt-0.5 text-[11.5px] text-muted">{item.location}</p>
-                      )}
-                    </li>
-                  ))}
+                            {item.description}
+                          </p>
+
+                          {(item.location || sourceName) && (
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                              {item.location && (
+                                <span className="text-[11px] text-muted">{item.location}</span>
+                              )}
+                              {sourceName && (
+                                <span className="flex items-center gap-1 rounded-full border border-panel-border bg-[var(--overlay)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
+                                  <FileIconLucide size={11} className="text-accent" />
+                                  {sourceName}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </>
             )}
@@ -1346,7 +1551,12 @@ export default function CoursesPage() {
             <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
               Documents
             </h2>
-            {visibleDocuments.length === 0 ? (
+            {persistedUploadsError && (
+              <p className="mb-2 text-[12px] text-rose">{persistedUploadsError}</p>
+            )}
+            {isLoadingPersistedUploads && visibleDocuments.length === 0 ? (
+              <p className="text-[13px] text-muted">Loading…</p>
+            ) : visibleDocuments.length === 0 ? (
               <div className="rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
                 <p className="text-[13px] text-muted">
                   No documents yet &ndash; upload one above to get started.
@@ -1409,12 +1619,23 @@ export default function CoursesPage() {
 
                       <button
                         onClick={() => handleRemove(doc.id)}
-                        className="shrink-0 rounded p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100"
-                        aria-label="Remove document"
+                        disabled={doc.isDeleting}
+                        className="shrink-0 rounded p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100 disabled:opacity-50"
+                        aria-label="Delete document"
                       >
-                        <Trash2 size={13} />
+                        {doc.isDeleting ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
                       </button>
                     </div>
+
+                    {doc.deleteError && (
+                      <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">
+                        {doc.deleteError}
+                      </p>
+                    )}
 
                     {doc.uploadError && (
                       <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">

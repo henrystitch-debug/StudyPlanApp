@@ -38,7 +38,7 @@ export default function TodosPage() {
         }
 
         if (!response.ok) {
-          throw new Error(data.error ?? "To-dos konnten nicht geladen werden");
+          throw new Error(data.error ?? "To-do konnten nicht geladen werden");
         }
 
         const list: Todo[] = (data.todos ?? []).map(
@@ -191,7 +191,7 @@ export default function TodosPage() {
     <>
       <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
-          To-dos
+          To-do
         </h1>
         {todos.length > 0 && (
           <span className="text-[13px] text-muted">
@@ -225,7 +225,7 @@ export default function TodosPage() {
       ) : todos.length === 0 ? (
         <div className="rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
           <p className="text-[13px] text-muted">
-            No to-dos yet &ndash; add one above to get started.
+            No to-do yet &ndash; add one above to get started.
           </p>
         </div>
       ) : (

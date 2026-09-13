@@ -12,7 +12,7 @@ export async function GET(request: Request) {
         const dbResponse = await getToDosById(uid);
 
         if (!dbResponse) {
-            return Response.json({ error: "No to-dos found" }, { status: 404 });
+            return Response.json({ error: "No to-do found" }, { status: 404 });
         }
 
         return Response.json(
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     } catch (err) {
         console.error(err);
         return Response.json(
-            { error: "Error while fetching to-dos" },
+            { error: "Error while fetching to-do" },
             { status: 500 }
         );
     }

@@ -27,8 +27,17 @@ export async function POST (request: Request){
             { status: 500})
           }
 
+          // saveStudyplan legt die Items in derselben Reihenfolge an, in der sie
+          // reingegeben wurden - die echte study_plan_item_id wird hier per Index
+          // zurückgemischt, damit "Mark as done" auch direkt nach dem Erzeugen
+          // funktioniert (nicht erst nach einem Neuladen der Seite).
+          const studyplanWithIds = responseAI.studyplan.map((item, i) => ({
+            ...item,
+            id: responseDb.items?.[i]?.study_plan_item_id,
+          }));
+
           return Response.json({
-            studyplan: responseAI.studyplan,
+            studyplan: studyplanWithIds,
             });
         }
 

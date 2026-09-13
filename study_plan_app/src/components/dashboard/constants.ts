@@ -9,7 +9,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Streak", icon: Flame, href: "/streak" },
   { label: "Calendar", icon: CalendarDays, href: "/calendar" },
   { label: "Courses", icon: ClipboardList, href: "/courses" },
-  { label: "To-dos", icon: ListChecks, href: "/todos" },
+  { label: "To-do", icon: ListChecks, href: "/todos" },
   { label: "Analytics", icon: BarChart2, href: "#" },
 ];
 
