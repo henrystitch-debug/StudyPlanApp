@@ -6,7 +6,7 @@ import { pool } from "./client";
 export async function getTodaysEventsByUserId(userId : number, date: string) {
  
     const result = await pool.query(
-    `SELECT * FROM events WHERE user_id = $1 AND event_date = $2`,
+    `SELECT * FROM event WHERE user_id = $1 AND event_date = $2`,
      [userId, date]
   );
   return result.rows ?? null;;
@@ -18,7 +18,7 @@ export async function getTodaysEventsByUserId(userId : number, date: string) {
 export async function getAllEventsByUserId(userId : number) {
  
     const result = await pool.query(
-    `SELECT * FROM events WHERE user_id = $1`,
+    `SELECT * FROM event WHERE user_id = $1`,
      [userId]
   );
   return result.rows ?? null;;
@@ -30,7 +30,7 @@ export async function getAllEventsByUserId(userId : number) {
 export async function getAllEventsOfCourse(userId : number, courseId: number) {
  
     const result = await pool.query(
-    `SELECT * FROM events WHERE user_id = $1 AND course_id = $2`,
+    `SELECT * FROM event WHERE user_id = $1 AND course_id = $2`,
      [userId, courseId]
   );
   return result.rows ?? null;;

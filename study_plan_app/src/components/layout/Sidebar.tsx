@@ -7,9 +7,6 @@ import { ChevronDown, ChevronUp, LogOut, Mail, User } from "lucide-react";
 import { NAV_ITEMS } from "@/components/dashboard/constants";
 import { useAuth } from "@/hooks/useAuth";
 
-// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 26;
-
 type SidebarProps = {
   open: boolean;
   onClose: () => void;
@@ -18,17 +15,21 @@ type SidebarProps = {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { email, signOut } = useAuth();
+  const { email, userId, signOut } = useAuth();
   const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!userId) return;
+
     const fetchUser = async () => {
       try {
-        const response = await fetch(`/api/user?uid=${CURRENT_UID}`);
+        const url = new URL("/api/user/userGet", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const response = await fetch(url);
         const data = await response.json();
 
         if (response.ok) {
-          setUserName(data.userInfo?.name ?? null);
+          setUserName(data.user?.name ?? null);
         }
       } catch {
         // Kein Fallback nötig - die Zeile wird dann einfach nicht angezeigt.
@@ -36,7 +37,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     };
 
     fetchUser();
-  }, []);
+  }, [userId]);
 
   const navRef = useRef<HTMLElement>(null);
   const [overflowing, setOverflowing] = useState(false);

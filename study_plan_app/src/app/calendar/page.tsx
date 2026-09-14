@@ -14,43 +14,71 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-import { useCourses, type Course } from "@/hooks/useCourses";
+import { useAuth } from "@/hooks/useAuth";
 
-type EventType = "event" | "task" | "holiday" | "reminder";
+type EventType = "lecture" | "exam" | "study_session" | "other";
 
 type CalendarEvent = {
-  id: string;
-  day: number; // Tag im Monat, 1-31
+  id: number;
+  date: Date;
   title: string;
-  time?: string;
+  startTime?: string;
+  endTime?: string;
   type: EventType;
-  /** course id from useCourses, or undefined for things not tied to a course */
-  course?: string;
+  courseId: number | null;
 };
 
-// TODO: Platzhalter-Termine – später aus der Datenbank laden
-// (z.B. StudyPlanItem + eigene Events/Reminders), statt hart codiert.
-// `course` verweist auf eine id aus useCourses (Maths, Science, …).
-const MOCK_EVENTS: CalendarEvent[] = [
-  { id: "e1", day: 3, title: "Salsa Course", time: "7 pm", type: "event" },
-  { id: "e2", day: 8, title: "Statistics Exam", time: "9 am", type: "task", course: "maths" },
-  { id: "e3", day: 12, title: "Public Holiday", type: "holiday" },
-  { id: "e4", day: 18, title: "Submit essay draft", type: "reminder", course: "english" },
-  { id: "e5", day: 21, title: "Study group", time: "5 pm", type: "event", course: "science" },
-  { id: "e6", day: 6, title: "Lab report due", type: "task", course: "science" },
-  { id: "e7", day: 15, title: "Portfolio review", time: "2 pm", type: "event", course: "art" },
-  { id: "e8", day: 15, title: "Read chapter 4", type: "reminder", course: "history" },
-  { id: "e9", day: 24, title: "Maths problem set", type: "task", course: "maths" },
-  { id: "e10", day: 27, title: "History essay outline", type: "reminder", course: "history" },
-  { id: "e11", day: 9, title: "Group project sync", time: "4 pm", type: "event", course: "english" },
+type RawEvent = {
+  event_id: number;
+  event_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  event_type: EventType;
+  description: string | null;
+  course_id: number | null;
+};
+
+type Course = {
+  id: number;
+  name: string;
+  color: string; // assigned client-side — DB has no color column
+};
+
+const COURSE_COLORS = [
+  "bg-accent",
+  "bg-rose",
+  "bg-emerald-400",
+  "bg-sky-400",
+  "bg-amber-400",
+  "bg-violet-400",
 ];
 
-const TYPE_META: Record<EventType, { label: string; singular: string; dotClass: string }> = {
-  event: { label: "Events", singular: "Event", dotClass: "bg-accent" },
-  task: { label: "Tasks", singular: "Task", dotClass: "bg-rose" },
-  holiday: { label: "Holidays", singular: "Holiday", dotClass: "bg-emerald-400" },
-  reminder: { label: "Reminders", singular: "Reminder", dotClass: "bg-[var(--text-secondary)]" },
+function toCalendarEvent(e: RawEvent): CalendarEvent {
+  return {
+    id: e.event_id,
+    date: new Date(e.event_date),
+    title: e.description ?? e.event_type,
+    startTime: e.start_time ? e.start_time.slice(0, 5) : undefined,
+    endTime: e.end_time ? e.end_time.slice(0, 5) : undefined,
+    type: e.event_type,
+    courseId: e.course_id,
+  };
+}
+
+const TYPE_META: Record<
+  EventType,
+  { label: string; singular: string; dotClass: string }
+> = {
+  lecture: { label: "Lectures", singular: "Lecture", dotClass: "bg-accent" },
+  exam: { label: "Exams", singular: "Exam", dotClass: "bg-rose" },
+  study_session: {
+    label: "Study sessions",
+    singular: "Study session",
+    dotClass: "bg-emerald-400",
+  },
+  other: { label: "Other", singular: "Other", dotClass: "bg-[var(--text-secondary)]" },
 };
+
 const ALL_TYPES = Object.keys(TYPE_META) as EventType[];
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -68,21 +96,15 @@ function getMonthGrid(year: number, monthIndex: number) {
   return cells;
 }
 
-// "7 pm" / "2 pm" / "10:30 am" -> minutes since midnight; untimed sorts last.
+// "09:00" / "14:30" -> minutes since midnight; untimed sorts last.
 function timeToMinutes(time?: string): number {
   if (!time) return 24 * 60 + 1;
-  const m = time.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
-  if (!m) return 24 * 60 + 1;
-  let h = parseInt(m[1], 10);
-  const min = m[2] ? parseInt(m[2], 10) : 0;
-  const ap = m[3]?.toLowerCase();
-  if (ap === "pm" && h !== 12) h += 12;
-  if (ap === "am" && h === 12) h = 0;
-  return h * 60 + min;
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + (m || 0);
 }
 
 const byTime = (a: CalendarEvent, b: CalendarEvent) =>
-  timeToMinutes(a.time) - timeToMinutes(b.time);
+  timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
 
 // --- filter dropdown -------------------------------------------------------
 
@@ -233,8 +255,10 @@ function EventRow({
           {course.name}
         </span>
       )}
-      {event.time && (
-        <span className="shrink-0 text-[11px] text-muted">{event.time}</span>
+      {event.startTime && event.endTime && (
+        <span className="shrink-0 text-[11px] text-muted">
+          {event.startTime} – {event.endTime}
+        </span>
       )}
     </div>
   );
@@ -243,8 +267,8 @@ function EventRow({
 // --- page ----------------------------------------------------------------
 
 export default function CalendarPage() {
+  const { userId } = useAuth();
   const today = useMemo(() => new Date(), []);
-  const { courses } = useCourses();
 
   const [viewDate, setViewDate] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1)
@@ -255,7 +279,12 @@ export default function CalendarPage() {
   // Filters store what's switched OFF, so a freshly added course / a new event
   // type shows up by default without any reconciliation.
   const [hiddenTypes, setHiddenTypes] = useState<EventType[]>([]);
-  const [hiddenCourseIds, setHiddenCourseIds] = useState<string[]>([]);
+  const [hiddenCourseIds, setHiddenCourseIds] = useState<number[]>([]);
+
+  const [allEvents, setAllEvents] = useState<CalendarEvent[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const year = viewDate.getFullYear();
   const monthIndex = viewDate.getMonth();
@@ -267,6 +296,47 @@ export default function CalendarPage() {
     () => new Map(courses.map((c) => [c.id, c])),
     [courses]
   );
+
+  useEffect(() => {
+    if (!userId) return;
+
+    async function loadData() {
+      try {
+        setLoading(true);
+
+        const eventsUrl = new URL("/api/calendar/eventsAll", window.location.origin);
+        eventsUrl.searchParams.set("userId", `${userId}`);
+        const eventsRes = await fetch(eventsUrl);
+        if (!eventsRes.ok) throw new Error("Failed to fetch events");
+        const eventsData = await eventsRes.json();
+        const rawEvents: RawEvent[] = eventsData.events ?? eventsData;
+        setAllEvents(rawEvents.map(toCalendarEvent));
+
+        // TODO: confirm this matches your real course route's response shape
+        const coursesUrl = new URL("/api/course/coursesAll", window.location.origin);
+        coursesUrl.searchParams.set("userId", `${userId}`);
+        const coursesRes = await fetch(coursesUrl);
+        if (!coursesRes.ok) throw new Error("Failed to fetch courses");
+        const coursesData = await coursesRes.json();
+        const rawCourses: { course_id: number; title: string }[] =
+          coursesData.courses ?? coursesData;
+        setCourses(
+          rawCourses.map((c, i) => ({
+            id: c.course_id,
+            name: c.title,
+            color: COURSE_COLORS[i % COURSE_COLORS.length],
+          }))
+        );
+      } catch (err) {
+        console.error(err);
+        setError("Could not load your calendar.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [userId]);
 
   const cells = useMemo(
     () => getMonthGrid(year, monthIndex),
@@ -280,20 +350,24 @@ export default function CalendarPage() {
 
   const visibleEvents = useMemo(
     () =>
-      MOCK_EVENTS.filter(
-        (e) =>
-          !hiddenTypes.includes(e.type) &&
-          (e.course == null || !hiddenCourseIds.includes(e.course))
-      ),
-    [hiddenTypes, hiddenCourseIds]
+      allEvents.filter((e) => {
+        const matchesType = !hiddenTypes.includes(e.type);
+        const matchesCourse =
+          e.courseId === null || !hiddenCourseIds.includes(e.courseId);
+        const matchesMonth =
+          e.date.getFullYear() === year && e.date.getMonth() === monthIndex;
+        return matchesType && matchesCourse && matchesMonth;
+      }),
+    [allEvents, hiddenTypes, hiddenCourseIds, year, monthIndex]
   );
 
   const eventsByDay = useMemo(() => {
     const map = new Map<number, CalendarEvent[]>();
     for (const e of visibleEvents) {
-      const list = map.get(e.day) ?? [];
+      const day = e.date.getDate();
+      const list = map.get(day) ?? [];
       list.push(e);
-      map.set(e.day, list);
+      map.set(day, list);
     }
     for (const list of map.values()) list.sort(byTime);
     return map;
@@ -382,12 +456,17 @@ export default function CalendarPage() {
   const anyFilter = hiddenTypes.length > 0 || hiddenCourseIds.length > 0;
 
   const agendaDays = useMemo(
-    () =>
-      [...eventsByDay.keys()]
-        .filter((d) => d >= 1)
-        .sort((a, b) => a - b),
+    () => [...eventsByDay.keys()].filter((d) => d >= 1).sort((a, b) => a - b),
     [eventsByDay]
   );
+
+  if (loading) {
+    return <p className="text-[13px] text-muted">Loading calendar...</p>;
+  }
+
+  if (error) {
+    return <p className="text-[13px] text-[var(--text-danger)]">{error}</p>;
+  }
 
   return (
     <>
@@ -634,7 +713,7 @@ export default function CalendarPage() {
                         >
                           <EventRow
                             event={e}
-                            course={e.course ? coursesById.get(e.course) : undefined}
+                            course={e.courseId ? coursesById.get(e.courseId) : undefined}
                           />
                         </button>
                       ))}
@@ -694,7 +773,7 @@ export default function CalendarPage() {
                   <EventRow
                     key={e.id}
                     event={e}
-                    course={e.course ? coursesById.get(e.course) : undefined}
+                    course={e.courseId ? coursesById.get(e.courseId) : undefined}
                   />
                 ))}
               </div>

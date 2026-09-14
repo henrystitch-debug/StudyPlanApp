@@ -1,4 +1,4 @@
-import { Calender, CalenderItem } from "@/types/calender";
+import { Calendar, CalendarItem } from "@/types/calendar";
 import { FullTopicIndex } from "@/types/topicIndex";
 import { aiStudyplanResponse, studyplanResponseSchema } from "@/types/studyplan";
 import { promptStudyplan } from "@/utils/prompts";
@@ -8,9 +8,9 @@ import { GEMINI_MODEL } from "./config";
 import { ai } from "./client";
 
 
-export async function createStudyplan(startDate: Date, endDate: Date, calendarEvents: Calender, topicIndeces: FullTopicIndex[], capacity: number): Promise<StudyplanResult>{
+export async function createStudyplan(startDate: Date, endDate: Date, calendarEvents: Calendar, topicIndeces: FullTopicIndex[], capacity: number): Promise<StudyplanResult>{
 
-    const calenderJustInfo = calendarEvents.map((event: CalenderItem) => ({
+    const calendarJustInfo = calendarEvents.map((event: CalendarItem) => ({
                 date: event.date,
                 title: event.title, 
                 startTime: event.startTime,
@@ -21,7 +21,7 @@ export async function createStudyplan(startDate: Date, endDate: Date, calendarEv
                             End date: ${endDate}
 
                             Existing calendar entries in this period (do NOT schedule over these):
-                            ${JSON.stringify(calenderJustInfo, null, 2)}
+                            ${JSON.stringify(calendarJustInfo, null, 2)}
 
                             Topics to cover (from the student's uploaded materials):
                             ${JSON.stringify(topicIndeces, null, 2)}

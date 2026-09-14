@@ -1,4 +1,4 @@
-import { getStreakStats } from "@/lib/db/user";
+import { getCoursesWithUploadCounts } from "@/lib/db/course";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -8,11 +8,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "userId is required" }, { status: 400 });
   }
 
-  const stats = await getStreakStats(userId);
-
-  if (!stats) {
-    return Response.json({ error: "User not found" }, { status: 404 });
-  }
-
-  return Response.json({ streak: stats });
+  const courses = await getCoursesWithUploadCounts(userId);
+  return Response.json({ courses });
 }

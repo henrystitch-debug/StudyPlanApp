@@ -23,6 +23,10 @@ import {
   EyeOff,
 } from "lucide-react";
 import jsPDF from "jspdf";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { type Course } from "@/types/course";
+import { gradientForCourse } from "@/components/dashboard/constants";
 
 type TopicIndexItem = {
   title: string;
@@ -54,7 +58,7 @@ type CourseDocument = {
   uploadedAt: number; // Epoch-ms, fürs Sortieren (neuester Upload zuerst)
   file?: File; // fehlt bei Dokumenten, die aus der DB nachgeladen wurden (kein Datei-Handle im Browser)
   courseId: number;
-  uploadId?: number; // vom Server vergebene Id, Voraussetzung für Summary-/Quiz-Request
+  uploadId?: number;
   isUploading?: boolean;
   uploadError?: string;
   summary?: DocumentSummary;
@@ -76,12 +80,6 @@ type CourseDocument = {
   isTopicIndexExpanded?: boolean;
   isDeleting?: boolean;
   deleteError?: string;
-};
-
-type Course = {
-  id: number;
-  name: string;
-  semester?: string;
 };
 
 type StudyPlanItem = {
@@ -114,9 +112,6 @@ type CalendarEvent = {
 function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
   return aStart < bEnd && bStart < aEnd;
 }
-
-// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 26;
 
 function AddCourseCard({
   userId,
@@ -151,8 +146,8 @@ function AddCourseCard({
       }
 
       onCreated({
-        id: data.course.course_id,
-        name: data.course.title,
+        courseId: data.course.course_id,
+        title: data.course.title,
         semester: data.course.semester,
       });
       setTitle("");
@@ -234,7 +229,7 @@ function EditCourseForm({
   onSaved: (course: Course) => void;
   onCancel: () => void;
 }) {
-  const [title, setTitle] = useState(course.name);
+  const [title, setTitle] = useState(course.title);
   const [semester, setSemester] = useState(course.semester ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,7 +244,7 @@ function EditCourseForm({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          courseId: course.id,
+          courseId: course.courseId,
           title,
           semester,
         }),
@@ -261,8 +256,8 @@ function EditCourseForm({
       }
 
       onSaved({
-        id: data.course.course_id,
-        name: data.course.title,
+        courseId: data.course.course_id,
+        title: data.course.title,
         semester: data.course.semester,
       });
     } catch (err) {
@@ -457,6 +452,9 @@ function downloadQuizAsPdf(quiz: Quiz, sourceFileName: string) {
 }
 
 export default function CoursesPage() {
+  const router = useRouter();
+  const { userId, isAuthed } = useAuth();
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
@@ -505,29 +503,42 @@ export default function CoursesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isCourseSwitcherOpen]);
 
+  // Not signed in? Bounce to login rather than loading with no real user.
   useEffect(() => {
+    if (isAuthed === false) router.replace("/login");
+  }, [isAuthed, router]);
+
+  useEffect(() => {
+    if (!userId) return; // wait until useAuth has resolved a real user
+
     const fetchCourses = async () => {
       setIsLoadingCourses(true);
       setCoursesError(null);
       try {
-        const response = await fetch(`/api/course/coursesAll?uid=${CURRENT_UID}`);
+        const url = new URL("/api/course/coursesWithCounts", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.error ?? "Kurse konnten nicht geladen werden");
         }
 
-        // Echte DB-Zeilen: { course_id, title, semester }.
         const list: Course[] = (data.courses ?? []).map(
-          (row: { course_id: number; title: string; semester?: string }) => ({
-            id: row.course_id,
-            name: row.title,
-            semester: row.semester,
+          (row: {
+            course_id: number;
+            title: string;
+            semester?: string;
+            upload_count: string;
+          }) => ({
+            courseId: row.course_id,
+            title: row.title,
+            semester: row.semester ?? "",
+            uploadCount: Number(row.upload_count),
           })
         );
 
-        // NEU: kein automatisches Vorauswählen mehr - beim ersten Aufruf der
-        // Seite sollen erst alle Kurse als Grid gezeigt werden.
         setCourses(list);
       } catch (err) {
         setCoursesError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -537,7 +548,7 @@ export default function CoursesPage() {
     };
 
     fetchCourses();
-  }, []);
+  }, [userId]);
 
   // Lädt beim Auswählen eines Kurses alle bereits hochgeladenen Dokumente
   // dieses Nutzers für den Kurs aus der DB (GET /api/upload/uploadGetAll) und
@@ -697,7 +708,7 @@ export default function CoursesPage() {
   // hinterher auf Konflikte zu prüfen) und die Themen der ausgewählten
   // Uploads, ruft dann POST /api/studyplan/studyplanCreate auf.
   const handleGenerateStudyPlan = async () => {
-    if (!selectedCourseId || !studyPlanStart || !studyPlanEnd) return;
+    if (!userId || !selectedCourseId || !studyPlanStart || !studyPlanEnd) return;
     if (selectedUploadIds.length === 0) {
       setGenerateStudyPlanError("Bitte mindestens ein Dokument auswählen.");
       return;
@@ -708,7 +719,7 @@ export default function CoursesPage() {
 
     try {
       const eventsResponse = await fetch(
-        `/api/calendar/eventsRange?userId=${CURRENT_UID}&startDate=${studyPlanStart}&endDate=${studyPlanEnd}`
+        `/api/calendar/eventsRange?userId=${userId}&startDate=${studyPlanStart}&endDate=${studyPlanEnd}`
       );
       const eventsData = eventsResponse.ok ? await eventsResponse.json() : { calenderEvents: [] };
       const events: CalendarEvent[] = (eventsData.calenderEvents ?? []).map((row: any) => ({
@@ -719,7 +730,7 @@ export default function CoursesPage() {
       }));
       // "events" fürs KI-Prompt braucht zusätzlich userId/autoCreated (Calender-Schema).
       const eventsForAI = events.map((e) => ({
-        userId: CURRENT_UID,
+        userId,
         date: e.date,
         startTime: e.startTime,
         endTime: e.endTime,
@@ -759,7 +770,7 @@ export default function CoursesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: CURRENT_UID,
+          userId,
           courseId: selectedCourseId,
           startDate: studyPlanStart,
           endDate: studyPlanEnd,
@@ -853,9 +864,12 @@ export default function CoursesPage() {
     }
   };
 
-  // Lädt die volle Zusammenfassung zu einem Titel per GET /api/summary/summaryGet.
-  const selectedCourse = courses.find((c) => c.id === selectedCourseId);
-  const otherCourses = courses.filter((c) => c.id !== selectedCourseId);
+  // Löschen/Anzeigen bereits gespeicherter Zusammenfassungen läuft jetzt direkt über
+  // die "View summary"-Aktion am jeweiligen Dokument (handleViewSummary weiter unten)
+  // statt über eine separate "Saved Summaries"-Box - handleOpenSavedSummary /
+  // handleDeleteSummary wurden deshalb entfernt.
+  const selectedCourse = courses.find((c) => c.courseId === selectedCourseId);
+  const otherCourses = courses.filter((c) => c.courseId !== selectedCourseId);
   const existingSemesters = Array.from(
     new Set(courses.map((c) => c.semester).filter((s): s is string => Boolean(s)))
   );
@@ -1335,7 +1349,7 @@ export default function CoursesPage() {
             course={selectedCourse}
             existingSemesters={existingSemesters}
             onSaved={(updated) => {
-              setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+              setCourses((prev) => prev.map((c) => (c.courseId === updated.courseId ? updated : c)));
               setIsEditingCourse(false);
             }}
             onCancel={() => setIsEditingCourse(false)}
@@ -1346,7 +1360,7 @@ export default function CoursesPage() {
           <div>
             <p className="text-[11px] uppercase tracking-wider text-muted">Current course</p>
             <p className="text-[17px] font-medium capitalize text-foreground font-serif">
-              {selectedCourse.name}
+              {selectedCourse.title}
               {selectedCourse.semester && (
                 <span className="ml-2 text-[12.5px] font-sans font-normal text-muted">
                   {selectedCourse.semester}
@@ -1381,14 +1395,14 @@ export default function CoursesPage() {
                 ) : (
                   otherCourses.map((course) => (
                     <button
-                      key={course.id}
+                      key={course.courseId}
                       onClick={() => {
-                        setSelectedCourseId(course.id);
+                        setSelectedCourseId(course.courseId);
                         setIsCourseSwitcherOpen(false);
                       }}
                       className="flex w-full flex-col items-start gap-0.5 rounded-lg px-2.5 py-2 text-left hover:bg-[var(--overlay)]"
                     >
-                      <span className="text-[13px] capitalize text-foreground">{course.name}</span>
+                      <span className="text-[13px] capitalize text-foreground">{course.title}</span>
                       {course.semester && (
                         <span className="text-[11px] text-muted">{course.semester}</span>
                       )}
@@ -1413,32 +1427,34 @@ export default function CoursesPage() {
         </div>
       ) : (
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {courses.map((course) => (
+          {courses.map((course, i) => (
             <button
-              key={course.id}
-              onClick={() => setSelectedCourseId(course.id)}
+              key={course.courseId}
+              onClick={() => setSelectedCourseId(course.courseId)}
               className="overflow-hidden rounded-xl border border-panel-border bg-panel text-left transition-colors hover:border-accent"
             >
-              <div className="h-20 w-full bg-gradient-to-br from-rose via-rose-500 to-[#2a1030]" />
+              <div className={`h-20 w-full bg-gradient-to-br ${gradientForCourse(i)}`} /> 
               <div className="p-3">
                 <p className="text-[13.5px] capitalize text-foreground">
-                  {course.name}
+                  {course.title}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted">
-                  {documents.filter((d) => d.courseId === course.id).length} documents
+                  {course.uploadCount ?? 0} document{course.uploadCount === 1 ? "" : "s"}
                 </p>
               </div>
             </button>
           ))}
 
-          <AddCourseCard
-            userId={CURRENT_UID}
-            existingSemesters={existingSemesters}
-            onCreated={(course) => {
-              setCourses((prev) => [...prev, course]);
-              setSelectedCourseId(course.id);
-            }}
-          />
+          {userId && (
+            <AddCourseCard
+              userId={userId}
+              existingSemesters={existingSemesters}
+              onCreated={(course) => {
+                setCourses((prev) => [...prev, course]);
+                setSelectedCourseId(course.courseId);
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -1446,7 +1462,7 @@ export default function CoursesPage() {
         <>
           <section className="mb-8">
             <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
-              Upload material for <span className="capitalize">{selectedCourse.name}</span>
+              Upload material for <span className="capitalize">{selectedCourse.title}</span>
             </h2>
             <label className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed border-panel-border bg-panel px-6 py-10 text-center transition-colors hover:border-accent">
               <Upload size={22} className="text-accent" />

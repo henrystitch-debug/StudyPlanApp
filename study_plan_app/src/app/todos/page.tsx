@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
 
 type Todo = {
   id: number;
@@ -8,10 +10,11 @@ type Todo = {
   completed: boolean;
 };
 
-// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 26;
-
 export default function TodosPage() {
+
+  const router = useRouter();
+const { userId, isAuthed } = useAuth();
+
   const [todos, setTodos] = useState<Todo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,11 +28,18 @@ export default function TodosPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (isAuthed === false) router.replace("/login");
+  }, [isAuthed, router]);
+
+  useEffect(() => {
+
+    if (!userId) return;
+    
     const fetchTodos = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/todo/todoGetAll?uid=${CURRENT_UID}`);
+        const response = await fetch(`/api/todo/todoGetAll?userId=${userId}`);
         const data = await response.json();
 
         if (response.status === 404) {
@@ -38,7 +48,7 @@ export default function TodosPage() {
         }
 
         if (!response.ok) {
-          throw new Error(data.error ?? "To-do konnten nicht geladen werden");
+          throw new Error(data.error ?? "Couldn't load to-dos");
         }
 
         const list: Todo[] = (data.todos ?? []).map(
@@ -50,7 +60,7 @@ export default function TodosPage() {
         );
         setTodos(list);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+        setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setIsLoading(false);
       }
@@ -58,6 +68,7 @@ export default function TodosPage() {
 
     fetchTodos();
   }, []);
+
 
   const handleAdd = async () => {
     const text = draft.trim();
@@ -69,7 +80,7 @@ export default function TodosPage() {
       const response = await fetch("/api/todo/todoCreate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: CURRENT_UID, text }),
+        body: JSON.stringify({ userId: userId, text }),
       });
       const data = await response.json();
 
@@ -97,7 +108,7 @@ export default function TodosPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          uid: CURRENT_UID,
+          userId: userId,
           todoId: todo.id,
           text: todo.text,
           completed: !todo.completed,
@@ -140,7 +151,7 @@ export default function TodosPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          uid: CURRENT_UID,
+          userId: userId,
           todoId: todo.id,
           text,
           completed: todo.completed,
@@ -168,7 +179,7 @@ export default function TodosPage() {
     setError(null);
     try {
       const response = await fetch(
-        `/api/todo/todoDelete?uid=${CURRENT_UID}&todoId=${todo.id}`,
+        `/api/todo/todoDelete?userId=${userId}&todoId=${todo.id}`,
         { method: "DELETE" }
       );
       const data = await response.json();

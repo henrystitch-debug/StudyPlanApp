@@ -9,7 +9,7 @@ export async function getAllCoursesOfUser(userId : number) {
     'SELECT course_id, title, semester FROM course WHERE user_id = $1',
     [userId]
   );
-  return result.rows;
+  return result.rows ?? null;
 }
 
 // ===============================================
@@ -63,4 +63,25 @@ export async function deleteCourse(courseId: number) {
   );
   if(!result.rowCount){ return null}
   return result.rowCount > 0;
+}
+
+// ===============================================
+// GET upload count per course
+//================================================
+export async function getCoursesWithUploadCounts(userId: number) {
+  const result = await pool.query(
+    `SELECT
+       c.course_id,
+       c.title,
+       c.semester,
+       COUNT(u.upload_id) AS upload_count,
+       MAX(u.uploaded_at) AS last_uploaded_at
+     FROM course c
+     LEFT JOIN upload u ON u.course_id = c.course_id
+     WHERE c.user_id = $1
+     GROUP BY c.course_id
+     ORDER BY c.course_id`,
+    [userId]
+  );
+  return result.rows;
 }

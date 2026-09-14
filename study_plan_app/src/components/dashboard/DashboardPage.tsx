@@ -6,35 +6,63 @@ import { useBubblyFonts } from "@/hooks/useBubblyFonts";
 import { WidgetPicker } from "./WidgetPicker";
 import { WIDGET_REGISTRY } from "./WidgetRegistry";
 import { DEFAULT_WIDGET_IDS } from "./constants";
+import { useAuth } from "@/hooks/useAuth";
 
-// TODO: durch echte uid aus einem Login/Auth-System ersetzen, sobald es das gibt.
-const CURRENT_UID = 26;
+function getGreeting(hour: number): string {
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 17 && hour < 23) return "Good evening";
+  return "Hello";
+}
 
 export function DashboardPage() {
+  const { userId } = useAuth();
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);
+  const [streak, setStreak] = useState<number | null>(null);
+  const [name, setName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   useBubblyFonts();
 
   useEffect(() => {
-    const fetchMessage = async () => {
+    if (!userId) return;
+
+    async function fetchUser() {
       try {
-        const response = await fetch(`/api/message?uid=${CURRENT_UID}`);
-        const data = await response.json();
-
-        if (response.ok) {
-          setMessage(data.message);
-        }
-      } catch {
-        // Fällt unten auf den statischen Platzhalter zurück.
+        const url = new URL("/api/user/userGet", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setStreak(data.user?.streak ?? 0);
+        setName(data.user?.name ?? null);
+      } catch (err) {
+        console.error("User fetch failed:", err);
       }
-    };
+    }
 
+    async function fetchMessage() {
+      try {
+        const url = new URL("/api/message", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setMessage(data.message ?? null);
+      } catch {
+        // falls back to the name-based greeting below
+      }
+    }
+
+    fetchUser();
     fetchMessage();
-  }, []);
+  }, [userId]);
 
   const toggleWidget = (id: string) => {
     setActiveWidgetIds((prev) => (prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]));
   };
+
+  const greeting = getGreeting(new Date().getHours());
+  const displayName = name ?? "there";
+
 
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
@@ -54,13 +82,18 @@ export function DashboardPage() {
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[13.5px] capitalize text-muted">{today}</p>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-rose/20 bg-rose/10 px-3 py-1 text-[13px] font-medium text-rose">
-          <Flame size={13} />0 Day Streak
+          <Flame size={13} />
+          {streak ?? 0} Day Streak
         </span>
       </div>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[32px] font-semibold tracking-tight text-foreground font-serif sm:text-[38px]">
-          {message ?? "Good evening."}
+          {message ?? (
+            <>
+              {greeting}, <span className="text-[var(--accent-strong)]">{displayName}</span>.
+            </>
+          )}
         </h1>
         <WidgetPicker activeIds={activeWidgetIds} onToggle={toggleWidget} />
       </div>
