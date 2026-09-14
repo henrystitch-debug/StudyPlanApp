@@ -11,6 +11,12 @@ import { WidgetPicker } from "./WidgetPicker";
 import { WIDGET_REGISTRY } from "./WidgetRegistry";
 import { DEFAULT_WIDGET_IDS } from "./constants";
 
+function getGreeting(hour: number): string {
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 17 && hour < 23) return "Good evening";
+  return "Hello";
+}
+
 const ORDER_KEY = "study-plan-widget-order";
 const REGISTRY_ORDER = WIDGET_REGISTRY.map((w) => w.id);
 
@@ -28,11 +34,47 @@ function readWidgetOrder(): string[] {
 }
 
 export function DashboardPage() {
+  const { userId } = useAuth();
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);
-  const { name } = useAuth();
-  const displayName = name ?? "there";
   const { theme, toggleTheme } = useTheme();
+  const [streak, setStreak] = useState<number | null>(null);
+  const [name, setName] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   useBubblyFonts();
+
+  useEffect(() => {
+    if (!userId) return;
+
+    async function fetchUser() {
+      try {
+        const url = new URL("/api/user/userGet", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setStreak(data.user?.streak ?? 0);
+        setName(data.user?.name ?? null);
+      } catch (err) {
+        console.error("User fetch failed:", err);
+      }
+    }
+
+    async function fetchMessage() {
+      try {
+        const url = new URL("/api/message", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setMessage(data.message ?? null);
+      } catch {
+        // falls back to the name-based greeting below
+      }
+    }
+
+    fetchUser();
+    fetchMessage();
+  }, [userId]);
 
   // Server-safe default order, then load the viewer's own saved
   // arrangement once mounted (same pattern as the theme/cover settings).
@@ -71,6 +113,9 @@ export function DashboardPage() {
     });
   };
 
+  const greeting = getGreeting(new Date().getHours());
+  const displayName = name ?? "there";
+
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
@@ -97,7 +142,8 @@ export function DashboardPage() {
         <div className="flex items-center gap-2.5">
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <span className="inline-flex items-center gap-1.5 rounded-full border border-rose/20 bg-rose/10 px-3 py-1 text-[13px] font-medium text-rose">
-            <Flame size={13} />0 Day Streak
+            <Flame size={13} />
+            {streak ?? 0} Day Streak
           </span>
           <WidgetPicker activeIds={activeWidgetIds} onToggle={toggleWidget} />
         </div>
@@ -105,7 +151,11 @@ export function DashboardPage() {
 
       <div className="mb-6">
         <h1 className="text-[32px] font-semibold tracking-tight text-foreground font-serif sm:text-[38px]">
-          Good evening, <span className="text-[var(--accent-strong)]">{displayName}</span>.
+          {message ?? (
+            <>
+              {greeting}, <span className="text-[var(--accent-strong)]">{displayName}</span>.
+            </>
+          )}
         </h1>
       </div>
 

@@ -6,16 +6,17 @@ import { pool } from './client';
 export async function getToDosById(userId: number){
 
     const result = await pool.query(
-    'SELECT * FROM to_do_list WHERE user_id = $1',
+    'SELECT * FROM to_do_list WHERE user_id = $1 ORDER BY to_do_id',
     [userId]
   );
-  return result.rows[0] ?? null;
+  return result.rows ?? null;
 }
 
 // ===============================================
 // UPDATE to do item
 //================================================
 export async function updateToDoItem(userId: number, toDoId: number, text: string, completed: boolean) {
+
   const result = await pool.query(
     `UPDATE to_do_list
      SET text = $1,

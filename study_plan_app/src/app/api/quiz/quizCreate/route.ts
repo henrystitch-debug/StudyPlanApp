@@ -18,8 +18,7 @@ export async function POST (request: Request){
         return Response.json({ error: "Upload not found" }, { status: 404 });
           }
 
-        console.log('Buffer length:', upload.data.length, 'filename:', upload.file_name, 'mime:', upload.mime_type);
-        const file = new File([upload.data], upload.filename, { type: upload.mimeType });
+        const file = new File([upload.data], upload.file_name, { type: upload.mime_type });
 
         if(!file){
             return Response.json(

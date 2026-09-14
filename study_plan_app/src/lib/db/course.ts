@@ -4,12 +4,12 @@ import { pool } from "./client";
 // GET ALL courses
 //================================================
 export async function getAllCoursesOfUser(userId : number) {
- 
+
   const result = await pool.query(
-    'SELECT title, semester FROM course WHERE user_id = $1',
+    'SELECT course_id, title, semester FROM course WHERE user_id = $1',
     [userId]
   );
-  return result.rows[0] ?? null;
+  return result.rows ?? null;
 }
 
 // ===============================================
@@ -27,12 +27,12 @@ export async function getCourseInfo(userId: number, courseId: number) {
 // ===============================================
 // CREATE course
 //================================================
-export async function createCourse(title: string, description: string, semester: string) {
+export async function createCourse(userId: number, title: string, semester: string) {
   const result = await pool.query(
-    `INSERT INTO course (id, title, description, semester)
+    `INSERT INTO course (course_id, user_id, title, semester)
      VALUES (DEFAULT, $1, $2, $3)
      RETURNING *`,
-    [title, description, semester]
+    [userId, title, semester]
   );
   return result.rows[0];
 }
@@ -40,16 +40,15 @@ export async function createCourse(title: string, description: string, semester:
 // ===============================================
 // UPDATE course
 //================================================
-export async function updateCourse(courseId: number, title: string, description: string, semester: string){
+export async function updateCourse(courseId: number, title: string, semester: string){
 
      const result = await pool.query(
     `UPDATE course
      SET title = $1,
-     description = $2,
-     semester = $3
-     WHERE course_id = $4
+     semester = $2
+     WHERE course_id = $3
      RETURNING *`,
-    [title, description, semester, courseId]
+    [title, semester, courseId]
   );
   return result.rows[0] ?? null;
 }
@@ -64,4 +63,24 @@ export async function deleteCourse(courseId: number) {
   );
   if(!result.rowCount){ return null}
   return result.rowCount > 0;
+}
+
+// ===============================================
+// GET upload count per course
+//================================================
+export async function getCoursesWithUploadCounts(userId: number) {
+  const result = await pool.query(
+    `SELECT
+       c.course_id,
+       c.title,
+       COUNT(u.upload_id) AS upload_count,
+       MAX(u.uploaded_at) AS last_uploaded_at
+     FROM course c
+     LEFT JOIN upload u ON u.course_id = c.course_id
+     WHERE c.user_id = $1
+     GROUP BY c.course_id
+     ORDER BY c.course_id`,
+    [userId]
+  );
+  return result.rows;
 }

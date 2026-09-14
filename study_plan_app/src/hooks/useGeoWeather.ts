@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 // Shared location + weather store for the Time and Weather dashboard
 // widgets. One geolocation request + one Open-Meteo call (free, no API key,
 // CORS-enabled) feeds both widgets — same module-store + useSyncExternalStore
-// shape as useAuth/useTodos, so every caller stays in sync and we never fire
+// shape as useAuth, so every caller stays in sync and we never fire
 // the browser's location prompt twice.
 // ---------------------------------------------------------------------------
 

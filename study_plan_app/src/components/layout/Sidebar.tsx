@@ -15,8 +15,31 @@ type SidebarProps = {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { email, name, signOut } = useAuth();
-  const displayName = name ?? email?.split("@")[0] ?? "Guest";
+  const { email, userId, signOut } = useAuth();
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const fetchUser = async () => {
+      try {
+        const url = new URL("/api/user/userGet", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (response.ok) {
+          setUserName(data.user?.name ?? null);
+        }
+      } catch {
+        // No fallback needed - the row just doesn't render.
+      }
+    };
+
+    fetchUser();
+  }, [userId]);
+
+  const displayName = userName ?? email?.split("@")[0] ?? "Guest";
   const initial = displayName.charAt(0).toUpperCase();
 
   const navRef = useRef<HTMLElement>(null);

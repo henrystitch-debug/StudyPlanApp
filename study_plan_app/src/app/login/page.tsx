@@ -16,10 +16,6 @@ import {
 } from "lucide-react";
 import {
   useAuth,
-  registerAccount,
-  verifyCredentials,
-  accountExists,
-  resetPassword,
   isAllowedEmail,
   isValidPassword,
   ADMIN_ACCOUNT,
@@ -701,63 +697,6 @@ function AppleIcon() {
   );
 }
 
-type AuthResult = { ok: boolean; error?: string; fallback?: boolean };
-
-// Talk to the auth routes:
-//   POST /api/user/userGet     -> verify credentials (sign in)
-//   POST /api/user/userCreate  -> register a new account (sign up)
-// The backend + database are still being built, so when a route doesn't
-// answer (or answers "not implemented") we fall back to the local placeholder
-// auth from useAuth and the page keeps working. Once the routes handle these
-// POSTs for real, the fallback stops being hit.
-async function postJSON(
-  url: string,
-  payload: Record<string, unknown>,
-): Promise<Response | null> {
-  try {
-    return await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    return null; // network error / server unreachable -> caller falls back
-  }
-}
-
-async function requestSignIn(
-  email: string,
-  password: string,
-): Promise<AuthResult> {
-  const res = await postJSON("/api/user/userGet", { email, password });
-  if (res && (res.status === 401 || res.status === 403)) {
-    const body = await res.json().catch(() => null);
-    return { ok: false, error: body?.error ?? "Wrong email or password." };
-  }
-  if (res && res.ok) return { ok: true };
-  // Backend not ready — verify against the local placeholder store.
-  if (verifyCredentials(email, password)) return { ok: true, fallback: true };
-  return { ok: false, error: "Wrong email or password." };
-}
-
-async function requestSignUp(
-  email: string,
-  password: string,
-  name: string,
-): Promise<AuthResult> {
-  const res = await postJSON("/api/user/userCreate", { email, password, name });
-  if (res && res.status === 409) {
-    const body = await res.json().catch(() => null);
-    return {
-      ok: false,
-      error: body?.error ?? "An account with that email already exists.",
-    };
-  }
-  if (res && res.ok) return { ok: true };
-  // Backend not ready — register in the local placeholder store instead.
-  return { ok: true, fallback: true };
-}
-
 // The app-wide theme lives on <html> as the `.light` class plus the
 // "study-learn-theme" localStorage key (see AppShell / useTheme). AppShell
 // renders no chrome on /login, so we drive a toggle here that reads and
@@ -874,79 +813,93 @@ export default function LoginPage() {
   const reqLetter = /[A-Za-z]/.test(password);
   const reqNumber = /[0-9]/.test(password);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setTouched(true);
-    setFormError(null);
-    if (!canSubmit || loading) return;
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setTouched(true);
+  setFormError(null);
+  if (!canSubmit || loading) return;
 
-    // Step 1 of a reset: pretend to send the email, then reveal the
-    // new-password step. We never say whether the account exists.
-    if (mode === "reset" && resetStep === "request") {
-      setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
-        setTouched(false);
-        setResetStep("confirm");
-      }, 900);
-      return;
-    }
-
-    if (mode === "reset" && resetStep === "confirm") {
-      if (email.trim().toLowerCase() === ADMIN_ACCOUNT.email) {
-        setFormError("The demo admin password can't be changed.");
-        return;
-      }
-      if (!accountExists(email)) {
-        setFormError("No account found for that email.");
-        return;
-      }
-      setLoading(true);
-      setSuccess(false);
-      setTimeout(() => {
-        setLoading(false);
-        setSuccess(true);
-        resetPassword(email, password); // stay on the page, sign in with the new password
-      }, 1100);
-      return;
-    }
-
-    // Sign in / sign up go through the API routes.
-    void submitAuth();
-  };
-
-  const submitAuth = async () => {
-    const addr = email.trim().toLowerCase();
+  if (mode === "signin") {
     setLoading(true);
-    setSuccess(false);
-    try {
-      const result =
-        mode === "signup"
-          ? await requestSignUp(addr, password, name.trim())
-          : await requestSignIn(addr, password);
-
-      if (!result.ok) {
-        setLoading(false);
-        setFormError(result.error ?? "Something went wrong. Please try again.");
-        return;
-      }
-
-      // Backend not ready yet — keep the local placeholder store in sync so a
-      // page reload still recognises the account.
-      if (result.fallback && mode === "signup") {
-        registerAccount(email.trim(), password, name.trim());
-      }
-
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json(); // parsed once, reused below either way
+    if (!res.ok) {
       setLoading(false);
-      setSuccess(true);
-      signIn(addr);
-      router.replace("/");
-      router.refresh();
-    } catch {
-      setLoading(false);
-      setFormError("Something went wrong. Please try again.");
+      setFormError(data.error ?? "Wrong email or password.");
+      return;
     }
-  };
+
+    setLoading(false);
+    setSuccess(true);
+    signIn({ userId: data.user.user_id, email: data.user.email });
+    router.replace("/");
+    router.refresh();
+    return;
+  }
+
+  // Step 1 of a reset: pretend to send the email, then reveal the
+  // new-password step. We never say whether the account exists.
+  if (mode === "reset" && resetStep === "request") {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setTouched(false);
+      setResetStep("confirm");
+    }, 900);
+    return;
+  }
+
+  if (mode === "reset" && resetStep === "confirm") {
+  if (email.trim().toLowerCase() === ADMIN_ACCOUNT.email) {
+    setFormError("The demo admin password can't be changed.");
+    return;
+  }
+
+  setLoading(true);
+  setSuccess(false);
+
+  const res = await fetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim(), newPassword: password }),
+  });
+  const data = await res.json();
+  setLoading(false);
+
+  if (!res.ok) {
+    setFormError(data.error ?? "Could not reset your password.");
+    return;
+  }
+
+  setSuccess(true);
+  return;
+}
+
+  if (mode === "signup") {
+    setLoading(true);
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), password, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setLoading(false);
+      setFormError(data.error ?? "Error creating account.");
+      return;
+    }
+
+    setLoading(false);
+    setSuccess(true);
+    signIn({ userId: data.user.user_id, email: data.user.email });
+    router.replace("/");
+    router.refresh();
+  }
+};
 
   const switchMode = (next: Mode) => {
     if (next === mode) return;
@@ -959,23 +912,10 @@ export default function LoginPage() {
     setResetStep("request");
   };
 
-  // Placeholder social sign-in – no real OAuth yet, just drops you in with a
-  // demo account so the buttons do something. Swap for Auth.js later.
+    //  TODO: make social login work
   const handleSocial = (provider: "google" | "apple") => {
-    if (loading) return;
-    const demoEmail = provider === "google" ? "you@gmail.com" : "you@icloud.com";
-    setFormError(null);
-    setLoading(true);
-    setSuccess(false);
-    setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
-      registerAccount(demoEmail, "");
-      signIn(demoEmail);
-      router.replace("/");
-      router.refresh();
-    }, 900);
-  };
+  setFormError(`${provider === "google" ? "Google" : "Apple"} sign-in isn't set up yet.`);
+};
 
   const fillDemo = () => {
     setEmail(ADMIN_ACCOUNT.email);

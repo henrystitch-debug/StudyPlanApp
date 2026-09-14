@@ -26,7 +26,7 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
   },
   {
     id: "todo",
-    label: "To Do",
+    label: "To-do",
     description: "A quick checklist for today.",
     span: "grid",
     render: () => <TodoWidget />,
