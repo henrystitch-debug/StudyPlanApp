@@ -7,11 +7,10 @@ export async function POST(request: Request) {
     const title = typeof body.title === "string" ? body.title.trim() : "";
     const semester = typeof body.semester === "string" ? body.semester.trim() : "";
 
-    if (!userId || Number.isNaN(userId) || !title || !semester) {
-      return Response.json(
-        { error: "userId, title, and semester are required" },
-        { status: 400 }
-      );
+    // Semester ist im UI optional ("Semester (optional)") - deshalb hier nicht
+    // erzwingen, nur userId und title sind Pflicht.
+    if (!userId || Number.isNaN(userId) || !title) {
+      return Response.json({ error: "userId and title are required" }, { status: 400 });
     }
 
     const course = await createCourse(userId, title, semester);
