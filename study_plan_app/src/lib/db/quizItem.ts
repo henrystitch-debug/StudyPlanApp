@@ -49,13 +49,24 @@ export async function getQuizzesOverviewForCourse(courseId: number) {
 type QuizType = 'flashcards' | 'mcq' | 'freetext';
 
 async function insertQuiz(client: any, uploadId: number, quizType: QuizType): Promise<number> {
+  // "quiz" hat einen UNIQUE-Constraint auf (upload_id, quiz_type) - ohne Upsert würde
+  // ein erneuter Klick auf "Quiz" für ein bereits generiertes Dokument mit einem
+  // Duplicate-Key-Fehler abstürzen. Bei Konflikt wird die bestehende Zeile
+  // wiederverwendet und ihre alten quiz_items werden unten ersetzt.
   const result = await client.query(
     `INSERT INTO quiz (quiz_id, upload_id, quiz_type)
      VALUES (DEFAULT, $1, $2)
+     ON CONFLICT (upload_id, quiz_type) DO UPDATE SET quiz_type = EXCLUDED.quiz_type
      RETURNING quiz_id`,
     [uploadId, quizType]
   );
-  return result.rows[0].quiz_id;
+  const quizId = result.rows[0].quiz_id;
+
+  // Alte Items dieses Quiz-Typs entfernen, damit ein Regenerieren sie ersetzt
+  // statt zu verdoppeln.
+  await client.query('DELETE FROM quiz_item WHERE quiz_id = $1', [quizId]);
+
+  return quizId;
 }
 
 async function insertQuizItems(
@@ -131,6 +142,45 @@ export async function saveQuizItems(
   } finally {
     client.release();
   }
+}
+
+// ===============================================
+// GET saved quiz (flashcards + mcq + freetext) for an upload
+//================================================
+export async function getQuizForUpload(uploadId: number) {
+  const quizzes = await pool.query(
+    'SELECT quiz_id, quiz_type FROM quiz WHERE upload_id = $1',
+    [uploadId]
+  );
+
+  if (quizzes.rows.length === 0) return null;
+
+  const quiz: {
+    flashcards: { question: string; answer: string }[];
+    mcq: { question: string; options: string[]; correctIndex: number }[];
+    openText: { question: string; modelAnswer: string }[];
+  } = { flashcards: [], mcq: [], openText: [] };
+
+  for (const row of quizzes.rows) {
+    const items = await pool.query(
+      'SELECT question, answer FROM quiz_item WHERE quiz_id = $1',
+      [row.quiz_id]
+    );
+
+    if (row.quiz_type === 'flashcards') {
+      quiz.flashcards = items.rows.map((i) => ({ question: i.question, answer: i.answer }));
+    } else if (row.quiz_type === 'mcq') {
+      quiz.mcq = items.rows.map((i) => ({
+        question: i.question,
+        options: i.answer?.options ?? [],
+        correctIndex: i.answer?.correct ?? 0,
+      }));
+    } else if (row.quiz_type === 'freetext') {
+      quiz.openText = items.rows.map((i) => ({ question: i.question, modelAnswer: i.answer }));
+    }
+  }
+
+  return quiz;
 }
 
 export async function deleteQuiz(quizId: number) {
