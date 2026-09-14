@@ -35,7 +35,6 @@ export function DashboardPage() {
 
     async function fetchMessage() {
       try {
-        // TODO: confirm this route now reads userId, not the old uid param
         const url = new URL("/api/message", window.location.origin);
         url.searchParams.set("userId", `${userId}`);
         const res = await fetch(url);

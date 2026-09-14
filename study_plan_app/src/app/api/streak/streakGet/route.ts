@@ -2,15 +2,14 @@ import { getUserById } from "@/lib/db/user";
 
 export async function GET(request: Request) {
     try {
-        // uid wird aus dem Query-Parameter der URL gelesen, z.B. /api/streak?uid=1
         const { searchParams } = new URL(request.url);
-        const uid = Number(searchParams.get("uid"));
+        const userId = Number(searchParams.get("userId"));
 
-        if (!uid || Number.isNaN(uid)) {
-            return Response.json({ error: "uid is required" }, { status: 400 });
+        if (!userId || Number.isNaN(userId)) {
+            return Response.json({ error: "userId is required" }, { status: 400 });
         }
 
-        const dbResponse = await getUserById(uid);
+        const dbResponse = await getUserById(userId);
 
         if (!dbResponse) {
             return Response.json({ error: "No streak data found" }, { status: 404 });

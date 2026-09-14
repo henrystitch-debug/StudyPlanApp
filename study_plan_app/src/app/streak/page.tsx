@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Flame, Trophy, CalendarCheck } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 type StreakData = {
   currentStreak: number;
@@ -53,7 +54,7 @@ export default function StreakPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/streak?uid=${CURRENT_UID}`);
+        const response = await fetch(`/api/streak?userId=${userId}`);
         const data = await response.json();
 
         if (!response.ok) {
