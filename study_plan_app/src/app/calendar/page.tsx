@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Plus,
   X,
 } from "lucide-react";
 import { useCourses, type Course } from "@/hooks/useCourses";
@@ -44,6 +45,17 @@ const MOCK_EVENTS: CalendarEvent[] = [
   { id: "e10", day: 27, title: "History essay outline", type: "reminder", course: "history" },
   { id: "e11", day: 9, title: "Group project sync", time: "4 pm", type: "event", course: "english" },
 ];
+
+const EVENTS_KEY = "study-plan-calendar-events";
+
+function readEvents(): CalendarEvent[] {
+  try {
+    const raw = window.localStorage.getItem(EVENTS_KEY);
+    return raw ? (JSON.parse(raw) as CalendarEvent[]) : MOCK_EVENTS;
+  } catch {
+    return MOCK_EVENTS;
+  }
+}
 
 const TYPE_META: Record<EventType, { label: string; singular: string; dotClass: string }> = {
   event: { label: "Events", singular: "Event", dotClass: "bg-accent" },
@@ -205,17 +217,79 @@ function MenuHeader({
   );
 }
 
+// --- inline tag picker (small single-select popover, styled to match
+// FilterDropdown rather than a native <select>) --------------------------
+
+function TagMenu<T extends string>({
+  value,
+  options,
+  onChange,
+  trigger,
+}: {
+  value: T;
+  options: { value: T; label: string; dotClass?: string }[];
+  onChange: (value: T) => void;
+  trigger: (open: boolean) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button type="button" onClick={() => setOpen((o) => !o)}>
+        {trigger(open)}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-40 rounded-lg border border-panel-border bg-panel p-1 shadow-lg">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay)]"
+            >
+              {opt.dotClass && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${opt.dotClass}`} />}
+              <span className="flex-1 truncate">{opt.label}</span>
+              {opt.value === value && <Check size={11} className="shrink-0 text-accent" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- shared event row (popup + agenda) -----------------------------------
 
 function EventRow({
   event,
   course,
+  courses,
+  onDelete,
+  onChangeType,
+  onChangeCourse,
 }: {
   event: CalendarEvent;
   course?: Course;
+  courses?: Course[];
+  onDelete?: () => void;
+  onChangeType?: (type: EventType) => void;
+  onChangeCourse?: (courseId: string | undefined) => void;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-panel-border bg-[var(--sunken)] px-3 py-2.5">
+    <div className="group flex items-center gap-2.5 rounded-lg border border-panel-border bg-[var(--sunken)] px-3 py-2.5">
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${TYPE_META[event.type].dotClass}`}
       />
@@ -223,18 +297,75 @@ function EventRow({
         <span className="truncate text-[13px] text-[var(--text-secondary)]">
           {event.title}
         </span>
-        <span className="text-[10.5px] uppercase tracking-wide text-muted">
-          {TYPE_META[event.type].singular}
-        </span>
+        {onChangeType ? (
+          <TagMenu
+            value={event.type}
+            onChange={onChangeType}
+            options={ALL_TYPES.map((t) => ({
+              value: t,
+              label: TYPE_META[t].singular,
+              dotClass: TYPE_META[t].dotClass,
+            }))}
+            trigger={(open) => (
+              <span
+                className={`-ml-0.5 flex items-center gap-0.5 rounded px-0.5 text-[10.5px] uppercase tracking-wide transition-colors hover:text-foreground ${
+                  open ? "text-foreground" : "text-muted"
+                }`}
+              >
+                {TYPE_META[event.type].singular}
+                <ChevronDown size={9} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+              </span>
+            )}
+          />
+        ) : (
+          <span className="text-[10.5px] uppercase tracking-wide text-muted">
+            {TYPE_META[event.type].singular}
+          </span>
+        )}
       </div>
-      {course && (
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--overlay)] px-2 py-0.5 text-[10.5px] text-muted">
-          <span className={`h-1.5 w-1.5 rounded-full ${course.color}`} />
-          {course.name}
-        </span>
+      {onChangeCourse ? (
+        <TagMenu
+          value={event.course ?? ""}
+          onChange={(v) => onChangeCourse(v || undefined)}
+          options={[
+            { value: "", label: "No course" },
+            ...(courses ?? []).map((c) => ({ value: c.id, label: c.name, dotClass: c.color })),
+          ]}
+          trigger={(open) => (
+            <span
+              className={`flex items-center gap-1.5 rounded-full bg-[var(--overlay)] px-2 py-0.5 text-[10.5px] text-muted transition-colors hover:text-foreground ${
+                open ? "bg-[var(--overlay-strong)] text-foreground" : ""
+              }`}
+            >
+              {course && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${course.color}`} />}
+              {course ? course.name : "No course"}
+              <ChevronDown size={9} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+            </span>
+          )}
+        />
+      ) : (
+        course && (
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--overlay)] px-2 py-0.5 text-[10.5px] text-muted">
+            <span className={`h-1.5 w-1.5 rounded-full ${course.color}`} />
+            {course.name}
+          </span>
+        )
       )}
       {event.time && (
         <span className="shrink-0 text-[11px] text-muted">{event.time}</span>
+      )}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          aria-label={`Delete ${event.title}`}
+          className="shrink-0 rounded-md p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100"
+        >
+          <X size={13} />
+        </button>
       )}
     </div>
   );
@@ -251,6 +382,54 @@ export default function CalendarPage() {
   );
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [view, setView] = useState<"month" | "agenda">("month");
+
+  // Server-safe default, then load the viewer's own saved events once
+  // mounted (same pattern as the theme/cover/widget-order settings).
+  const [events, setEvents] = useState<CalendarEvent[]>(MOCK_EVENTS);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [newEventTime, setNewEventTime] = useState("");
+  const [newEventType, setNewEventType] = useState<EventType>("event");
+
+  useEffect(() => {
+    setEvents(readEvents());
+    setEventsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!eventsLoaded) return;
+    try {
+      window.localStorage.setItem(EVENTS_KEY, JSON.stringify(events));
+    } catch {
+      /* ignore */
+    }
+  }, [events, eventsLoaded]);
+
+  const addEvent = (day: number) => {
+    const title = newEventTitle.trim();
+    if (!title) return;
+    setEvents((prev) => [
+      ...prev,
+      {
+        id: `e${Date.now()}`,
+        day,
+        title,
+        time: newEventTime.trim() || undefined,
+        type: newEventType,
+      },
+    ]);
+    setNewEventTitle("");
+    setNewEventTime("");
+    setNewEventType("event");
+  };
+
+  const deleteEvent = (id: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const updateEvent = (id: string, patch: Partial<CalendarEvent>) => {
+    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  };
 
   // Filters store what's switched OFF, so a freshly added course / a new event
   // type shows up by default without any reconciliation.
@@ -280,12 +459,12 @@ export default function CalendarPage() {
 
   const visibleEvents = useMemo(
     () =>
-      MOCK_EVENTS.filter(
+      events.filter(
         (e) =>
           !hiddenTypes.includes(e.type) &&
           (e.course == null || !hiddenCourseIds.includes(e.course))
       ),
-    [hiddenTypes, hiddenCourseIds]
+    [events, hiddenTypes, hiddenCourseIds]
   );
 
   const eventsByDay = useMemo(() => {
@@ -356,6 +535,9 @@ export default function CalendarPage() {
   // Day details open in a modal — close on Escape, lock background scroll.
   useEffect(() => {
     if (selectedDay === null) return;
+    setNewEventTitle("");
+    setNewEventTime("");
+    setNewEventType("event");
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelectedDay(null);
     };
@@ -657,7 +839,7 @@ export default function CalendarPage() {
         >
           <div className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-sm" />
           <div
-            className="relative z-10 w-full max-w-md rounded-2xl border border-panel-border bg-panel p-5 shadow-xl"
+            className="relative z-10 flex w-full max-w-xl max-h-[85vh] flex-col rounded-2xl border border-panel-border bg-panel p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-4">
@@ -689,16 +871,64 @@ export default function CalendarPage() {
                   : "Nothing scheduled for this day."}
               </p>
             ) : (
-              <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
+              <div className="mb-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                 {eventsForSelectedDay.map((e) => (
                   <EventRow
                     key={e.id}
                     event={e}
                     course={e.course ? coursesById.get(e.course) : undefined}
+                    courses={courses}
+                    onDelete={() => deleteEvent(e.id)}
+                    onChangeType={(type) => updateEvent(e.id, { type })}
+                    onChangeCourse={(course) => updateEvent(e.id, { course })}
                   />
                 ))}
               </div>
             )}
+
+            <div className="border-t border-panel-border pt-3">
+              <div className="mb-2 flex gap-1">
+                {ALL_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setNewEventType(type)}
+                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                      newEventType === type
+                        ? "border-accent/50 bg-[var(--overlay-strong)] text-foreground"
+                        : "border-panel-border text-muted hover:bg-[var(--overlay)]"
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${TYPE_META[type].dotClass}`} />
+                    {TYPE_META[type].singular}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={newEventTitle}
+                  onChange={(e) => setNewEventTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addEvent(selectedDay)}
+                  placeholder="Add something for this day&hellip;"
+                  className="min-w-0 flex-1 rounded-lg border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[13px] text-[var(--text-secondary)] placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <input
+                  value={newEventTime}
+                  onChange={(e) => setNewEventTime(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addEvent(selectedDay)}
+                  placeholder="3pm"
+                  className="w-16 shrink-0 rounded-lg border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-[var(--text-secondary)] placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <button
+                  type="button"
+                  onClick={() => addEvent(selectedDay)}
+                  aria-label="Add event"
+                  className="shrink-0 rounded-lg bg-accent p-1.5 text-accent-foreground transition-colors hover:brightness-110"
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

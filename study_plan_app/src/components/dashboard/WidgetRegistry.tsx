@@ -6,6 +6,8 @@ import { StudyPlanWidget } from "./StudyPlanWidget";
 import { AnalyticsWidget } from "./AnalyticsWidget";
 import { ReviewWidget } from "./ReviewWidget";
 import { WeekWidget } from "./WeekWidget";
+import { WeatherWidget } from "./WeatherWidget";
+import { TimeWidget } from "./TimeWidget";
 
 export const WIDGET_REGISTRY: WidgetDef[] = [
   {
@@ -19,7 +21,7 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     id: "courses",
     label: "Your Courses",
     description: "Grid of the courses you're studying.",
-    span: "full",
+    span: "grid",
     render: () => <CoursesWidget />,
   },
   {
@@ -56,5 +58,19 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "Your courses, open to check off tasks.",
     span: "grid",
     render: () => <StudyPlanWidget />,
+  },
+  {
+    id: "weather",
+    label: "Weather",
+    description: "Current conditions for your location.",
+    span: "grid",
+    render: () => <WeatherWidget />,
+  },
+  {
+    id: "time",
+    label: "Local Time",
+    description: "A live clock for your location's timezone.",
+    span: "grid",
+    render: () => <TimeWidget />,
   },
 ];

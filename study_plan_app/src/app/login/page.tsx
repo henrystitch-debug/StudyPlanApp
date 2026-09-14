@@ -934,7 +934,7 @@ export default function LoginPage() {
       // Backend not ready yet — keep the local placeholder store in sync so a
       // page reload still recognises the account.
       if (result.fallback && mode === "signup") {
-        registerAccount(email.trim(), password);
+        registerAccount(email.trim(), password, name.trim());
       }
 
       setLoading(false);
@@ -1020,7 +1020,7 @@ export default function LoginPage() {
 
         <div className="lp-mark">
           <span className="lp-mark-dot" />
-          StudyPlanApp
+          StudyMaxxing
         </div>
 
         <div className="lp-brand-body">

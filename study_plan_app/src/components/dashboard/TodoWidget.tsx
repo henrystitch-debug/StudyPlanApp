@@ -1,22 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ListChecks, Plus } from "lucide-react";
-import type { TodoItem } from "./types";
-import { INITIAL_TODOS } from "./constants";
+import { Check, ListChecks, Plus, X } from "lucide-react";
+import { useTodos } from "@/hooks/useTodos";
 
 export function TodoWidget() {
-  const [todos, setTodos] = useState<TodoItem[]>(INITIAL_TODOS);
+  const { todos, addTodo, toggleTodo, removeTodo } = useTodos();
   const [draft, setDraft] = useState("");
 
-  const toggleTodo = (id: string) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-  };
-
-  const addTodo = () => {
-    const label = draft.trim();
-    if (!label) return;
-    setTodos((prev) => [...prev, { id: `t${Date.now()}`, label, done: false }]);
+  const handleAdd = () => {
+    addTodo(draft);
     setDraft("");
   };
 
@@ -38,26 +31,37 @@ export function TodoWidget() {
 
       <div className="flex flex-1 flex-col gap-1.5">
         {todos.map((todo) => (
-          <button
+          <div
             key={todo.id}
-            onClick={() => toggleTodo(todo.id)}
-            className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--overlay)]"
+            className="group flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--overlay)]"
           >
-            <span
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                todo.done ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
-              }`}
+            <button
+              onClick={() => toggleTodo(todo.id)}
+              className="flex flex-1 items-center gap-2.5 text-left"
             >
-              {todo.done && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
-            </span>
-            <span
-              className={`text-[14.5px] transition-colors ${
-                todo.done ? "text-muted line-through" : "text-[var(--text-secondary)]"
-              }`}
+              <span
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                  todo.done ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
+                }`}
+              >
+                {todo.done && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
+              </span>
+              <span
+                className={`text-[14.5px] transition-colors ${
+                  todo.done ? "text-muted line-through" : "text-[var(--text-secondary)]"
+                }`}
+              >
+                {todo.label}
+              </span>
+            </button>
+            <button
+              onClick={() => removeTodo(todo.id)}
+              aria-label="Delete task"
+              className="shrink-0 rounded-md p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100"
             >
-              {todo.label}
-            </span>
-          </button>
+              <X size={13} />
+            </button>
+          </div>
         ))}
       </div>
 
@@ -65,12 +69,12 @@ export function TodoWidget() {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addTodo()}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           placeholder="Add a task&hellip;"
           className="min-w-0 flex-1 rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[14px] text-[var(--text-secondary)] placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent"
         />
         <button
-          onClick={addTodo}
+          onClick={handleAdd}
           className="shrink-0 rounded-md bg-accent px-2.5 py-1.5 text-accent-foreground transition-colors hover:brightness-110"
           aria-label="Add task"
         >

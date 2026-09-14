@@ -1,10 +1,11 @@
-import { LayoutDashboard, BookOpen, Flame, CalendarDays, ClipboardList, BarChart2 } from "lucide-react";
+import { LayoutDashboard, BookOpen, Flame, CalendarDays, ClipboardList, ListChecks, BarChart2 } from "lucide-react";
 import type { NavItem, TodoItem, CoursePlan } from "./types";
 
 // TODO: "Analytics" hat noch keine eigene Seite – Link zeigt vorerst auf "#"
 // (Sidebar behandelt das als deaktiviert), bis die Seite existiert.
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
+  { label: "To Do", icon: ListChecks, href: "/todo" },
   { label: "Flashcards", icon: BookOpen, href: "/study" },
   { label: "Streak", icon: Flame, href: "/streak" },
   { label: "Calendar", icon: CalendarDays, href: "/calendar" },
@@ -33,4 +34,4 @@ export const INITIAL_COURSE_PLANS: CoursePlan[] = [
   },
 ];
 
-export const DEFAULT_WIDGET_IDS = ["focus", "courses", "todo", "review", "week", "analytics"];
+export const DEFAULT_WIDGET_IDS = ["focus", "courses", "todo", "review", "week", "analytics", "weather", "time"];

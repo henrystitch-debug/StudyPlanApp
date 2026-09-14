@@ -16,6 +16,7 @@ import { useCallback, useSyncExternalStore } from "react";
 
 const EMAIL_KEY = "study-plan-email";
 const ACCOUNTS_KEY = "study-plan-accounts";
+const NAMES_KEY = "study-plan-names";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 // Built-in admin account – always works, even in a fresh browser. Handy for
@@ -80,14 +81,36 @@ function readAccounts(): Accounts {
 }
 
 /** Remember a newly created account so it can sign in again later. */
-export function registerAccount(email: string, password: string) {
+export function registerAccount(email: string, password: string, name?: string) {
   try {
+    const key = email.trim().toLowerCase();
     const accounts = readAccounts();
-    accounts[email.trim().toLowerCase()] = password;
+    accounts[key] = password;
     window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+
+    if (name && name.trim()) {
+      const names = readNames();
+      names[key] = name.trim();
+      window.localStorage.setItem(NAMES_KEY, JSON.stringify(names));
+    }
   } catch {
     /* ignore */
   }
+}
+
+function readNames(): Accounts {
+  try {
+    return JSON.parse(window.localStorage.getItem(NAMES_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+/** The display name given at sign-up for this email, if any. */
+export function getAccountName(email: string): string | null {
+  const key = email.trim().toLowerCase();
+  if (key === ADMIN_ACCOUNT.email) return "Admin";
+  return readNames()[key] ?? null;
 }
 
 /** True if the credentials match the admin account or a registered one. */
@@ -179,6 +202,7 @@ function getServerSnapshot(): string | null {
 
 export function useAuth() {
   const email = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const name = email ? getAccountName(email) : null;
 
   const signIn = useCallback((nextEmail: string) => {
     setSession(nextEmail.trim().toLowerCase());
@@ -188,5 +212,5 @@ export function useAuth() {
     setSession(null);
   }, []);
 
-  return { email, isAuthed: Boolean(email), signIn, signOut };
+  return { email, name, isAuthed: Boolean(email), signIn, signOut };
 }
