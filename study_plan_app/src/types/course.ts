@@ -1,5 +1,6 @@
 export type Course = {
-  course_id: number;
+  courseId: number;
   title: string;
-  semester: string
+  semester: string;
+  uploadCount?: number;
 };
