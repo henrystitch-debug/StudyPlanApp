@@ -19,8 +19,8 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
   {
     id: "courses",
     label: "Your Courses",
-    description: "Grid of the courses you're studying.",
-    span: "grid",
+    description: "Your courses with semester, documents, and study progress.",
+    span: "full",
     render: () => <CoursesWidget />,
   },
   {

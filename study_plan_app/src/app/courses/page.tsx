@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type Course } from "@/types/course";
 import { gradientForCourse } from "@/components/dashboard/constants";
 
@@ -338,10 +338,20 @@ function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) 
 
 export default function CoursesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { userId, isAuthed } = useAuth();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+
+  // Deep-link support: /courses?courseId=123 (used by the dashboard's
+  // Courses widget) pre-selects that course once the list has loaded.
+  useEffect(() => {
+    const courseIdParam = searchParams.get("courseId");
+    if (!courseIdParam) return;
+    const id = Number(courseIdParam);
+    if (!Number.isNaN(id)) setSelectedCourseId(id);
+  }, [searchParams]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
   const [coursesError, setCoursesError] = useState<string | null>(null);
 
@@ -1228,13 +1238,13 @@ export default function CoursesPage() {
         </div>
       ) : (
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {courses.map((course, i) => (
+          {courses.map((course) => (
             <button
               key={course.courseId}
               onClick={() => setSelectedCourseId(course.courseId)}
               className="overflow-hidden rounded-xl border border-panel-border bg-panel text-left transition-colors hover:border-accent"
             >
-              <div className={`h-20 w-full bg-gradient-to-br ${gradientForCourse(i)}`} /> 
+              <div className={`h-20 w-full bg-gradient-to-br ${gradientForCourse(course.courseId)}`} />
               <div className="p-3">
                 <p className="text-[13.5px] capitalize text-foreground">
                   {course.title}
