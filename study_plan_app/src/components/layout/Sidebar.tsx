@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, GraduationCap, LogOut } from "lucide-react";
 import { NAV_ITEMS } from "@/components/dashboard/constants";
 import { useAuth } from "@/hooks/useAuth";
+import { AvatarPicker } from "./AvatarPicker";
 
 type SidebarProps = {
   open: boolean;
@@ -17,6 +18,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const router = useRouter();
   const { email, userId, signOut } = useAuth();
   const [userName, setUserName] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -30,6 +32,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         if (response.ok) {
           setUserName(data.user?.name ?? null);
+          setAvatar(data.user?.avatar ?? null);
         }
       } catch {
         // No fallback needed - the row just doesn't render.
@@ -41,6 +44,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   const displayName = userName ?? email?.split("@")[0] ?? "Guest";
   const initial = displayName.charAt(0).toUpperCase();
+
+  const changeAvatar = async (next: string | null) => {
+    const previous = avatar;
+    setAvatar(next); // optimistic
+    if (!userId) return;
+    try {
+      const res = await fetch("/api/user/userAvatar", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, avatar: next }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+    } catch (err) {
+      console.error(err);
+      setAvatar(previous);
+    }
+  };
 
   const navRef = useRef<HTMLElement>(null);
   const [overflowing, setOverflowing] = useState(false);
@@ -154,9 +174,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         <div className="border-t border-panel-border p-3">
           <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[13px] font-semibold text-accent">
-              {initial}
-            </span>
+            <AvatarPicker avatar={avatar} initial={initial} onChange={changeAvatar} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13.5px] font-medium text-foreground">
                 {displayName}

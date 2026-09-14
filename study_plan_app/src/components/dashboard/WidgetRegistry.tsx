@@ -3,7 +3,6 @@ import { FocusCard } from "./FocusCard";
 import { CoursesWidget } from "./CoursesWidget";
 import { TodoWidget } from "./TodoWidget";
 import { StudyPlanWidget } from "./StudyPlanWidget";
-import { AnalyticsWidget } from "./AnalyticsWidget";
 import { ReviewWidget } from "./ReviewWidget";
 import { WeekWidget } from "./WeekWidget";
 import { WeatherWidget } from "./WeatherWidget";
@@ -30,13 +29,6 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "A quick checklist for today.",
     span: "grid",
     render: () => <TodoWidget />,
-  },
-  {
-    id: "analytics",
-    label: "Analytics",
-    description: "Per-course progress, open to check off items.",
-    span: "grid",
-    render: () => <AnalyticsWidget />,
   },
   {
     id: "review",

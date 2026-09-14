@@ -17,7 +17,7 @@ export async function getUserByEmail(email: string) {
 //================================================
 export async function createUser(email: string, plainPassword: string, name?: string) {
   const passwordHash = await bcrypt.hash(plainPassword, 10);
-
+  
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -92,6 +92,21 @@ export async function updateUserName(userId: number, name: string){
      WHERE user_id = $2
      RETURNING *`,
     [name, userId]
+  );
+  return result.rows[0] ?? null;
+}
+
+// ===============================================
+// UPDATE user (avatar)
+//================================================
+export async function updateUserAvatar(userId: number, avatar: string | null) {
+
+ const result = await pool.query(
+    `UPDATE app_user
+     SET avatar = $1
+     WHERE user_id = $2
+     RETURNING *`,
+    [avatar, userId]
   );
   return result.rows[0] ?? null;
 }

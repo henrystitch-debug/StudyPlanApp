@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Pencil,
+  Plus,
   X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -82,6 +84,27 @@ const TYPE_META: Record<
 const ALL_TYPES = Object.keys(TYPE_META) as EventType[];
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function toDateInputValue(year: number, monthIndex: number, day: number) {
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+// Rounds up to the next half hour and gives a 1h duration, capped so it
+// doesn't spill past the end of the day — a friendlier default than a
+// fixed 09:00–10:00 regardless of when you're actually adding the event.
+function defaultEventTimes(now: Date) {
+  let hour = now.getHours();
+  const minute = now.getMinutes() < 30 ? 30 : 0;
+  if (minute === 0) hour += 1;
+  hour = Math.min(hour, 22);
+  const endHour = Math.min(hour + 1, 23);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    startTime: `${pad(hour)}:${pad(minute)}`,
+    endTime: `${pad(endHour)}:${pad(minute)}`,
+  };
+}
 
 function getMonthGrid(year: number, monthIndex: number) {
   const firstOfMonth = new Date(year, monthIndex, 1);
@@ -229,9 +252,24 @@ function MenuHeader({
 
 // --- shared event row (popup + agenda) -----------------------------------
 
-function EventRow({ event, course }: { event: CalendarEvent; course?: Course }) {
+function EventRow({
+  event,
+  course,
+  onClick,
+}: {
+  event: CalendarEvent;
+  course?: Course;
+  onClick?: () => void;
+}) {
+  const Wrapper = onClick ? "button" : "div";
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-panel-border bg-[var(--sunken)] px-3 py-2.5">
+    <Wrapper
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-lg border border-panel-border bg-[var(--sunken)] px-3 py-2.5 text-left transition-colors ${
+        onClick ? "hover:border-accent/50 hover:bg-[var(--overlay)]" : ""
+      }`}
+    >
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${TYPE_META[event.type].dotClass}`}
       />
@@ -254,7 +292,8 @@ function EventRow({ event, course }: { event: CalendarEvent; course?: Course }) 
           {event.startTime} – {event.endTime}
         </span>
       )}
-    </div>
+      {onClick && <Pencil size={12} className="shrink-0 text-muted" />}
+    </Wrapper>
   );
 }
 
@@ -279,6 +318,19 @@ export default function CalendarPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [addForm, setAddForm] = useState({
+    title: "",
+    date: "",
+    startTime: "09:00",
+    endTime: "10:00",
+    type: "lecture" as EventType,
+    courseId: null as number | null,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const year = viewDate.getFullYear();
   const monthIndex = viewDate.getMonth();
@@ -382,6 +434,122 @@ export default function CalendarPage() {
     setHiddenCourseIds([]);
   };
 
+  const closeEventModal = () => {
+    setShowAddModal(false);
+    setEditingEventId(null);
+  };
+
+  const openAddModal = (day?: number) => {
+    const targetDay = day ?? (isCurrentMonth ? today.getDate() : 1);
+    setAddForm({
+      title: "",
+      date: toDateInputValue(year, monthIndex, targetDay),
+      ...defaultEventTimes(new Date()),
+      type: "lecture",
+      courseId: null,
+    });
+    setAddError(null);
+    setEditingEventId(null);
+    setSelectedDay(null);
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (event: CalendarEvent) => {
+    setAddForm({
+      title: event.title,
+      date: toDateInputValue(
+        event.date.getFullYear(),
+        event.date.getMonth(),
+        event.date.getDate()
+      ),
+      startTime: event.startTime ?? "09:00",
+      endTime: event.endTime ?? "10:00",
+      type: event.type,
+      courseId: event.courseId,
+    });
+    setAddError(null);
+    setEditingEventId(event.id);
+    setSelectedDay(null);
+    setShowAddModal(true);
+  };
+
+  const validateEventForm = () => {
+    if (!addForm.title.trim()) {
+      setAddError("Title is required.");
+      return false;
+    }
+    if (!addForm.date || !addForm.startTime || !addForm.endTime) {
+      setAddError("Date, start time and end time are required.");
+      return false;
+    }
+    if (addForm.endTime <= addForm.startTime) {
+      setAddError("End time must be after start time.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleSaveEvent = async () => {
+    if (!userId) return;
+    if (!validateEventForm()) return;
+
+    setIsSaving(true);
+    setAddError(null);
+    try {
+      const isEditing = editingEventId !== null;
+      const res = await fetch(
+        isEditing ? "/api/calendar/eventEdit" : "/api/calendar/eventCreate",
+        {
+          method: isEditing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(isEditing ? { eventId: editingEventId } : { userId }),
+            eventDate: addForm.date,
+            startTime: addForm.startTime,
+            endTime: addForm.endTime,
+            eventType: addForm.type,
+            description: addForm.title.trim(),
+            courseId: addForm.courseId,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error ?? `Could not ${isEditing ? "update" : "create"} event`);
+
+      const saved = toCalendarEvent(data.event);
+      setAllEvents((prev) =>
+        isEditing ? prev.map((e) => (e.id === saved.id ? saved : e)) : [...prev, saved]
+      );
+      closeEventModal();
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (editingEventId === null) return;
+    setIsSaving(true);
+    setAddError(null);
+    try {
+      const res = await fetch(
+        `/api/calendar/eventDelete?eventId=${editingEventId}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not delete event");
+
+      setAllEvents((prev) => prev.filter((e) => e.id !== editingEventId));
+      closeEventModal();
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const toggleHidden = <T,>(
     setter: React.Dispatch<React.SetStateAction<T[]>>,
     value: T
@@ -421,11 +589,14 @@ export default function CalendarPage() {
   const eventsForSelectedDay =
     selectedDay !== null ? eventsByDay.get(selectedDay) ?? [] : [];
 
-  // Day details open in a modal — close on Escape, lock background scroll.
+  // Day details / add-event open in a modal — close on Escape, lock background scroll.
   useEffect(() => {
-    if (selectedDay === null) return;
+    if (selectedDay === null && !showAddModal) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelectedDay(null);
+      if (e.key === "Escape") {
+        setSelectedDay(null);
+        closeEventModal();
+      }
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -434,7 +605,7 @@ export default function CalendarPage() {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [selectedDay]);
+  }, [selectedDay, showAddModal]);
 
   const selectedDayLabel =
     selectedDay !== null
@@ -493,6 +664,15 @@ export default function CalendarPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openAddModal()}
+            className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-accent-foreground transition-colors hover:brightness-110"
+          >
+            <Plus size={14} />
+            Add event
+          </button>
+
           <div className="flex rounded-full border border-panel-border p-0.5 text-[12px]">
             {(["month", "agenda"] as const).map((v) => (
               <button
@@ -700,16 +880,12 @@ export default function CalendarPage() {
                     </button>
                     <div className="flex flex-col gap-1.5">
                       {(eventsByDay.get(day) ?? []).map((e) => (
-                        <button
+                        <EventRow
                           key={e.id}
-                          onClick={() => setSelectedDay(day)}
-                          className="text-left"
-                        >
-                          <EventRow
-                            event={e}
-                            course={e.courseId ? coursesById.get(e.courseId) : undefined}
-                          />
-                        </button>
+                          event={e}
+                          course={e.courseId ? coursesById.get(e.courseId) : undefined}
+                          onClick={() => openEditModal(e)}
+                        />
                       ))}
                     </div>
                   </div>
@@ -746,21 +922,40 @@ export default function CalendarPage() {
                       }`}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedDay(null)}
-                aria-label="Close"
-                className="-mr-1 -mt-1 rounded-md p-1.5 text-muted hover:bg-[var(--overlay)] hover:text-foreground"
-              >
-                <X size={16} />
-              </button>
+              <div className="-mr-1 -mt-1 flex items-center gap-0.5">
+                <button
+                  onClick={() => openAddModal(selectedDay ?? undefined)}
+                  aria-label="Add event on this day"
+                  title="Add event"
+                  className="rounded-md p-1.5 text-muted hover:bg-[var(--overlay)] hover:text-foreground"
+                >
+                  <Plus size={16} />
+                </button>
+                <button
+                  onClick={() => setSelectedDay(null)}
+                  aria-label="Close"
+                  className="rounded-md p-1.5 text-muted hover:bg-[var(--overlay)] hover:text-foreground"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             {eventsForSelectedDay.length === 0 ? (
-              <p className="text-[13px] text-muted">
-                {anyFilter
-                  ? "No events match the current filters."
-                  : "Nothing scheduled for this day."}
-              </p>
+              anyFilter ? (
+                <p className="text-[13px] text-muted">
+                  No events match the current filters.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAddModal(selectedDay ?? undefined)}
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-panel-border py-4 text-[13px] text-muted transition-colors hover:border-accent/50 hover:text-foreground"
+                >
+                  <Plus size={14} />
+                  Add an event for this day
+                </button>
+              )
             ) : (
               <div className="mb-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                 {eventsForSelectedDay.map((e) => (
@@ -768,10 +963,186 @@ export default function CalendarPage() {
                     key={e.id}
                     event={e}
                     course={e.courseId ? coursesById.get(e.courseId) : undefined}
+                    onClick={() => openEditModal(e)}
                   />
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={editingEventId !== null ? "Edit event" : "Add event"}
+          onClick={closeEventModal}
+        >
+          <div className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-sm" />
+          <div
+            className="relative z-10 flex w-full max-w-2xl max-h-[90vh] flex-col overflow-y-auto rounded-2xl border border-panel-border bg-panel p-7 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-[19px] font-medium text-foreground font-serif">
+                  {editingEventId !== null ? "Edit event" : "Add event"}
+                </h2>
+                <p className="mt-0.5 text-[12px] text-muted">
+                  {editingEventId !== null
+                    ? "Update the details or delete this event."
+                    : "Create a lecture, exam, or study session."}
+                </p>
+              </div>
+              <button
+                onClick={closeEventModal}
+                aria-label="Close"
+                className="-mr-1 -mt-1 rounded-md p-1.5 text-muted hover:bg-[var(--overlay)] hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
+                  Title
+                </label>
+                <input
+                  autoFocus
+                  value={addForm.title}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, title: e.target.value }))
+                  }
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveEvent()}
+                  placeholder="e.g. Linear Algebra midterm"
+                  className="w-full rounded-md border border-panel-border bg-[var(--sunken)] px-3 py-2 text-[13.5px] text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
+                  Type / tag
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_TYPES.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setAddForm((f) => ({ ...f, type: t }))}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] transition-colors ${
+                        addForm.type === t
+                          ? "border-accent bg-[var(--overlay-strong)] text-foreground"
+                          : "border-panel-border text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${TYPE_META[t].dotClass}`}
+                      />
+                      {TYPE_META[t].singular}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={addForm.date}
+                    onChange={(e) =>
+                      setAddForm((f) => ({ ...f, date: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-2 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
+                    Start
+                  </label>
+                  <input
+                    type="time"
+                    value={addForm.startTime}
+                    onChange={(e) =>
+                      setAddForm((f) => ({ ...f, startTime: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-2 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
+                    End
+                  </label>
+                  <input
+                    type="time"
+                    value={addForm.endTime}
+                    onChange={(e) =>
+                      setAddForm((f) => ({ ...f, endTime: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-2 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+              </div>
+
+              {courses.length > 0 && (
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
+                    Course (optional)
+                  </label>
+                  <select
+                    value={addForm.courseId ?? ""}
+                    onChange={(e) =>
+                      setAddForm((f) => ({
+                        ...f,
+                        courseId: e.target.value ? Number(e.target.value) : null,
+                      }))
+                    }
+                    className="w-full rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-2 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="">No course</option>
+                    {courses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {addError && (
+                <p className="text-[12px] text-rose">{addError}</p>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              {editingEventId !== null && (
+                <button
+                  onClick={handleDeleteEvent}
+                  disabled={isSaving}
+                  className="mr-auto rounded-md px-3 py-1.5 text-[12.5px] text-rose transition-colors hover:bg-rose/10 disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                onClick={closeEventModal}
+                className="rounded-md px-3 py-1.5 text-[12.5px] text-muted hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEvent}
+                disabled={isSaving || !addForm.title.trim()}
+                className="rounded-md bg-accent px-4 py-1.5 text-[12.5px] font-medium text-accent-foreground transition-colors hover:brightness-110 disabled:opacity-50"
+              >
+                {isSaving ? "Saving…" : editingEventId !== null ? "Save changes" : "Add event"}
+              </button>
+            </div>
           </div>
         </div>
       )}
