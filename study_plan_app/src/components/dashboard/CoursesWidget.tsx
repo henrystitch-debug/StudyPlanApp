@@ -4,10 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { gradientForCourse } from "./constants";
 
 type CourseWithCount = {
-  id: number;
-  name: string;
+  courseId: number;
+  title: string;
   uploadCount: number;
   lastUploadedAt: string | null;
 };
@@ -18,14 +19,6 @@ type RawCourse = {
   upload_count: string; // Postgres COUNT() comes back as a string
   last_uploaded_at: string | null;
 };
-
-const GRADIENTS = [
-  "from-rose via-rose-500 to-[#2a1030]",
-  "from-sky-400 via-sky-600 to-[#0a1a2a]",
-  "from-emerald-400 via-emerald-600 to-[#0a2a1a]",
-  "from-amber-400 via-amber-600 to-[#2a1f0a]",
-  "from-violet-400 via-violet-600 to-[#1f0a2a]",
-];
 
 export function CoursesWidget() {
   const router = useRouter();
@@ -52,8 +45,8 @@ export function CoursesWidget() {
         const rawCourses: RawCourse[] = data.courses ?? [];
         setCourses(
           rawCourses.map((c) => ({
-            id: c.course_id,
-            name: c.title,
+            courseId: c.course_id,
+            title: c.title,
             uploadCount: Number(c.upload_count),
             lastUploadedAt: c.last_uploaded_at,
           }))
@@ -91,13 +84,13 @@ export function CoursesWidget() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           {courses.map((course, i) => (
             <button
-              key={course.id}
-              onClick={() => router.push(`/courses?courseId=${course.id}`)}
+              key={course.courseId}
+              onClick={() => router.push(`/courses?courseId=${course.courseId}`)}
               className="overflow-hidden rounded-xl border border-panel-border bg-panel text-left transition-colors hover:border-[var(--overlay-strong)]"
             >
-              <div className={`h-20 w-full bg-gradient-to-br ${GRADIENTS[i % GRADIENTS.length]}`} />
+              <div className={`h-20 w-full bg-gradient-to-br ${gradientForCourse(i)}`} />
               <div className="p-3">
-                <p className="text-[14.5px] capitalize text-foreground">{course.name}</p>
+                <p className="text-[14.5px] capitalize text-foreground">{course.title}</p>
                 <p className="mt-0.5 text-[12px] text-muted">
                   {course.uploadCount} document{course.uploadCount === 1 ? "" : "s"}
                   {course.lastUploadedAt &&

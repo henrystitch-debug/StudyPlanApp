@@ -24,6 +24,7 @@ import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { type Course } from "@/types/course";
+import { gradientForCourse } from "@/components/dashboard/constants";
 
 type TopicIndexItem = {
   title: string;
@@ -1227,13 +1228,13 @@ export default function CoursesPage() {
         </div>
       ) : (
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {courses.map((course) => (
+          {courses.map((course, i) => (
             <button
               key={course.courseId}
               onClick={() => setSelectedCourseId(course.courseId)}
               className="overflow-hidden rounded-xl border border-panel-border bg-panel text-left transition-colors hover:border-accent"
             >
-              <div className="h-20 w-full bg-gradient-to-br from-rose via-rose-500 to-[#2a1030]" />
+              <div className={`h-20 w-full bg-gradient-to-br ${gradientForCourse(i)}`} /> 
               <div className="p-3">
                 <p className="text-[13.5px] capitalize text-foreground">
                   {course.title}
