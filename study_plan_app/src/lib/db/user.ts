@@ -135,3 +135,73 @@ export async function deleteUser(userId: number) {
   if(!result.rowCount){ return null}
   return result.rowCount > 0;
 }
+
+// ===============================================
+// GET streak stats
+//================================================
+export async function getStreakStats(userId: number) {
+  const userResult = await pool.query(
+    `SELECT streak, longest_streak FROM app_user WHERE user_id = $1`,
+    [userId]
+  );
+  if (!userResult.rows[0]) return null;
+  const { streak, longest_streak } = userResult.rows[0];
+
+  const weekStatsResult = await pool.query(
+    `SELECT COUNT(*) AS quizzes_this_week, MAX(score) AS best_score_this_week
+     FROM quiz_attempt
+     WHERE user_id = $1
+       AND attempt_date >= date_trunc('week', CURRENT_DATE)`,
+    [userId]
+  );
+  const quizzesThisWeek = Number(weekStatsResult.rows[0].quizzes_this_week);
+  const bestScoreThisWeek =
+    weekStatsResult.rows[0].best_score_this_week !== null
+      ? Number(weekStatsResult.rows[0].best_score_this_week)
+      : null;
+
+  // Real daily activity, last 12 weeks — how many quizzes were attempted each day.
+  const activityResult = await pool.query(
+    `SELECT DATE(attempt_date) AS day, COUNT(*) AS count
+     FROM quiz_attempt
+     WHERE user_id = $1
+       AND attempt_date >= CURRENT_DATE - INTERVAL '83 days'
+     GROUP BY DATE(attempt_date)`,
+    [userId]
+  );
+  const countsByDate = new Map<string, number>();
+  for (const row of activityResult.rows) {
+    countsByDate.set(row.day.toISOString().slice(0, 10), Number(row.count));
+  }
+
+  const today = new Date();
+  const currentWeekSunday = new Date(today);
+  currentWeekSunday.setDate(today.getDate() - today.getDay());
+  const startSunday = new Date(currentWeekSunday);
+  startSunday.setDate(startSunday.getDate() - 11 * 7); // 12 weeks total, ending this week
+
+  const days: number[] = [];
+  for (let i = 0; i < 84; i++) {
+    const d = new Date(startSunday);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    if (d > today) {
+      days.push(-1); // future day — render as an empty cell, not "no activity"
+      continue;
+    }
+    const count = countsByDate.get(key) ?? 0;
+    days.push(count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : 3);
+  }
+  const activityWeeks: number[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    activityWeeks.push(days.slice(i, i + 7));
+  }
+
+  return {
+    streak,
+    longestStreak: longest_streak,
+    quizzesThisWeek,
+    bestScoreThisWeek,
+    activityWeeks,
+  };
+}
