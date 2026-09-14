@@ -8,6 +8,12 @@ import { WIDGET_REGISTRY } from "./WidgetRegistry";
 import { DEFAULT_WIDGET_IDS } from "./constants";
 import { useAuth } from "@/hooks/useAuth";
 
+function getGreeting(hour: number): string {
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 17 && hour < 23) return "Good evening";
+  return "Hello";
+}
+
 export function DashboardPage() {
   const { userId } = useAuth();
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);
@@ -35,7 +41,6 @@ export function DashboardPage() {
 
     async function fetchMessage() {
       try {
-        // TODO: confirm this route now reads userId, not the old uid param
         const url = new URL("/api/message", window.location.origin);
         url.searchParams.set("userId", `${userId}`);
         const res = await fetch(url);
@@ -55,7 +60,9 @@ export function DashboardPage() {
     setActiveWidgetIds((prev) => (prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]));
   };
 
+  const greeting = getGreeting(new Date().getHours());
   const displayName = name ?? "there";
+
 
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
@@ -84,7 +91,7 @@ export function DashboardPage() {
         <h1 className="text-[32px] font-semibold tracking-tight text-foreground font-serif sm:text-[38px]">
           {message ?? (
             <>
-              Good evening, <span className="text-[var(--accent-strong)]">{displayName}</span>.
+              {greeting}, <span className="text-[var(--accent-strong)]">{displayName}</span>.
             </>
           )}
         </h1>

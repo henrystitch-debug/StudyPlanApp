@@ -16,9 +16,9 @@ export const NAV_ITEMS: NavItem[] = [
 export const WEEKDAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
 export const INITIAL_TODOS: TodoItem[] = [
-  { id: "t1", label: "Review color theory notes", done: true },
-  { id: "t2", label: "Sketch 3 thumbnail studies", done: false },
-  { id: "t3", label: "Read chapter on composition", done: false },
+  { id: 1, label: "Review color theory notes", done: true },
+  { id: 2, label: "Sketch 3 thumbnail studies", done: false },
+  { id: 3, label: "Read chapter on composition", done: false },
 ];
 
 export const INITIAL_COURSE_PLANS: CoursePlan[] = [
@@ -33,5 +33,20 @@ export const INITIAL_COURSE_PLANS: CoursePlan[] = [
     ],
   },
 ];
+
+export const GRADIENTS = [
+  "from-rose via-rose-500 to-[#2a1030]",
+  "from-sky-400 via-sky-600 to-[#0a1a2a]",
+  "from-emerald-400 via-emerald-600 to-[#0a2a1a]",
+  "from-amber-400 via-amber-600 to-[#2a1f0a]",
+  "from-violet-400 via-violet-600 to-[#1f0a2a]",
+  "from-pink-400 via-pink-600 to-[#2a0a1f]",
+  "from-cyan-400 via-cyan-600 to-[#0a2a2a]",
+  "from-lime-400 via-lime-600 to-[#1a2a0a]",
+];
+
+export function gradientForCourse(courseId: number) {
+  return GRADIENTS[courseId % GRADIENTS.length];
+}
 
 export const DEFAULT_WIDGET_IDS = ["focus", "courses", "todo", "review", "week", "analytics"];
