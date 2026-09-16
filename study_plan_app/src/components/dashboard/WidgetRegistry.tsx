@@ -7,6 +7,7 @@ import { ReviewWidget } from "./ReviewWidget";
 import { WeekWidget } from "./WeekWidget";
 import { WeatherWidget } from "./WeatherWidget";
 import { TimeWidget } from "./TimeWidget";
+import { AnalyticsWidget } from "./AnalyticsWidget";
 
 export const WIDGET_REGISTRY: WidgetDef[] = [
   {
@@ -36,6 +37,13 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "Flashcards that need another pass.",
     span: "grid",
     render: () => <ReviewWidget />,
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    description: "Per-course progress, open to check off items.",
+    span: "grid",
+    render: () => <AnalyticsWidget />,
   },
   {
     id: "week",

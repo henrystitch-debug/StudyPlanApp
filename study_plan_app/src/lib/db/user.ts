@@ -185,9 +185,11 @@ export async function getStreakStats(userId: number) {
     [userId]
   );
   const countsByDate = new Map<string, number>();
-  for (const row of activityResult.rows) {
-    countsByDate.set(row.day.toISOString().slice(0, 10), Number(row.count));
-  }
+for (const row of activityResult.rows) {
+  const dateKey =
+    row.day instanceof Date ? row.day.toISOString().slice(0, 10) : String(row.day).slice(0, 10);
+  countsByDate.set(dateKey, Number(row.count));
+}
 
   const today = new Date();
   const currentWeekSunday = new Date(today);
