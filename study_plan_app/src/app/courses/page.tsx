@@ -27,6 +27,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { type Course } from "@/types/course";
 import { gradientForCourse } from "@/components/dashboard/constants";
+import { AddCourseCard } from "@/components/courses/AddCourseCard";
+import { EditCourseForm } from "@/components/courses/EditCourseForm";
 
 type TopicIndexItem = {
   title: string;
@@ -80,6 +82,8 @@ type CourseDocument = {
   isTopicIndexExpanded?: boolean;
   isDeleting?: boolean;
   deleteError?: string;
+  summaryReady?: boolean; // true once the user has explicitly generated/fetched a summary this session
+  quizReady?: boolean;  
 };
 
 type StudyPlanItem = {
@@ -113,202 +117,6 @@ function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: s
   return aStart < bEnd && bStart < aEnd;
 }
 
-function AddCourseCard({
-  userId,
-  existingSemesters,
-  onCreated,
-}: {
-  userId: number;
-  existingSemesters: string[];
-  onCreated: (course: Course) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [semester, setSemester] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleCreate = async () => {
-    if (!title.trim()) return;
-
-    setIsSaving(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/course/courseCreate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, title, semester }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Kurs konnte nicht angelegt werden");
-      }
-
-      onCreated({
-        courseId: data.course.course_id,
-        title: data.course.title,
-        semester: data.course.semester,
-      });
-      setTitle("");
-      setSemester("");
-      setIsOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex h-full min-h-[132px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] text-muted transition-colors hover:bg-[var(--overlay)] hover:text-[var(--text-secondary)]"
-      >
-        <Plus size={18} />
-        <span className="text-[12.5px]">Add course</span>
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex h-full min-h-[132px] flex-col gap-1.5 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] p-3">
-      <input
-        autoFocus
-        placeholder="Course name"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-        className="rounded-md border border-panel-border bg-panel px-2 py-1.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-      />
-      <input
-        list="semester-options"
-        placeholder="Semester (optional)"
-        value={semester}
-        onChange={(e) => setSemester(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-        className="rounded-md border border-panel-border bg-panel px-2 py-1.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-      />
-      <datalist id="semester-options">
-        {existingSemesters.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-      {error && <p className="text-[11px] text-rose">{error}</p>}
-      <div className="mt-auto flex gap-1.5">
-        <button
-          onClick={handleCreate}
-          disabled={isSaving || !title.trim()}
-          className="flex-1 rounded-md border border-panel-border bg-[var(--overlay)] px-2 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
-        >
-          {isSaving ? "Saving…" : "Save"}
-        </button>
-        <button
-          onClick={() => {
-            setIsOpen(false);
-            setError(null);
-          }}
-          className="rounded-md px-2 py-1 text-[11.5px] text-muted hover:text-[var(--text-secondary)]"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function EditCourseForm({
-  course,
-  existingSemesters,
-  onSaved,
-  onCancel,
-}: {
-  course: Course;
-  existingSemesters: string[];
-  onSaved: (course: Course) => void;
-  onCancel: () => void;
-}) {
-  const [title, setTitle] = useState(course.title);
-  const [semester, setSemester] = useState(course.semester ?? "");
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSave = async () => {
-    if (!title.trim()) return;
-
-    setIsSaving(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/course/courseUpdate", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId: course.courseId,
-          title,
-          semester,
-        }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Kurs konnte nicht gespeichert werden");
-      }
-
-      onSaved({
-        courseId: data.course.course_id,
-        title: data.course.title,
-        semester: data.course.semester,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-panel-border bg-panel p-3.5">
-      <input
-        autoFocus
-        placeholder="Course name"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleSave()}
-        className="rounded-md border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-      />
-      <input
-        list="edit-semester-options"
-        placeholder="Semester (optional)"
-        value={semester}
-        onChange={(e) => setSemester(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleSave()}
-        className="rounded-md border border-panel-border bg-[var(--sunken)] px-2 py-1.5 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-      />
-      <datalist id="edit-semester-options">
-        {existingSemesters.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-      {error && <p className="text-[11px] text-rose">{error}</p>}
-      <div className="mt-1 flex gap-1.5">
-        <button
-          onClick={handleSave}
-          disabled={isSaving || !title.trim()}
-          className="flex-1 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1.5 text-[12.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
-        >
-          {isSaving ? "Saving…" : "Save"}
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded-md px-2.5 py-1.5 text-[12.5px] text-muted hover:text-[var(--text-secondary)]"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -1058,7 +866,7 @@ const handleGenerateSummary = async (id: string, uploadIdOverride?: number) => {
   if (!uploadId) return;
 
   setDocuments((prev) =>
-    prev.map((d) => (d.id === id ? { ...d, isSummarizing: true, summaryError: undefined } : d))
+    prev.map((d) => (d.id === id ? { ...d, isSummarizing: true, summaryError: undefined, summaryReady: true } : d))
   );
 
   try {
@@ -1066,7 +874,7 @@ const handleGenerateSummary = async (id: string, uploadIdOverride?: number) => {
     const existing = await fetchSavedSummary(uploadId);
     if (existing) {
       setDocuments((prev) =>
-        prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: existing } : d))
+        prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: existing, summaryReady: true } : d))
       );
       return;
     }
@@ -1086,7 +894,7 @@ const handleGenerateSummary = async (id: string, uploadIdOverride?: number) => {
       const retry = await fetchSavedSummary(uploadId);
       if (retry) {
         setDocuments((prev) =>
-          prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: retry } : d))
+          prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: retry, summaryReady: true } : d))
         );
         return;
       }
@@ -1212,29 +1020,28 @@ const triggerBackgroundSummary = async (uploadId: number) => {
     }
   };
 
-  const handleGenerateQuiz = async (id: string) => {
-    const doc = documents.find((d) => d.id === id);
-    if (!doc || !doc.uploadId) return;
+  const fetchSavedQuiz = async (uploadId: number): Promise<Quiz | null> => {
+  const res = await fetch(`/api/quiz/quizGetForUpload?uploadId=${uploadId}`);
+  if (res.status === 404) return null;
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error ?? "Quiz konnte nicht geladen werden");
+  }
+  return data.quiz ?? null;
+};
 
-    setDocuments((prev) =>
-      prev.map((d) =>
-        d.id === id ? { ...d, isGeneratingQuiz: true, quizError: undefined } : d
-      )
-    );
+const handleGenerateQuiz = async (id: string) => {
+  const doc = documents.find((d) => d.id === id);
+  if (!doc || !doc.uploadId) return;
 
-    try {
-      const response = await fetch("/api/quiz/quizCreate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId: doc.uploadId }),
-      });
+  setDocuments((prev) =>
+    prev.map((d) => (d.id === id ? { ...d, isGeneratingQuiz: true, quizError: undefined } : d))
+  );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Quiz-Erstellung fehlgeschlagen");
-      }
-
+  try {
+    // Already generated (earlier click, or by someone else on the team)? Just show it.
+    const existing = await fetchSavedQuiz(doc.uploadId);
+    if (existing) {
       setDocuments((prev) =>
         prev.map((d) =>
           d.id === id
@@ -1243,29 +1050,50 @@ const triggerBackgroundSummary = async (uploadId: number) => {
                 isGeneratingQuiz: false,
                 isQuizVisible: true,
                 isQuizContentExpanded: true,
-                quiz: {
-                  flashcards: data.flashcards ?? [],
-                  mcq: data.mcq ?? [],
-                  openText: data.openText ?? [],
-                },
+                quizReady: true,
+                quiz: existing,
               }
             : d
         )
       );
-    } catch (err) {
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                isGeneratingQuiz: false,
-                quizError: err instanceof Error ? err.message : "Unbekannter Fehler",
-              }
-            : d
-        )
-      );
+      return;
     }
-  };
+
+    const response = await fetch("/api/quiz/quizCreate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId: doc.uploadId }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error ?? "Quiz-Erstellung fehlgeschlagen");
+    }
+
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              isGeneratingQuiz: false,
+              isQuizVisible: true,
+              isQuizContentExpanded: true,
+              quizReady: true,
+              quiz: { flashcards: data.flashcards ?? [], mcq: data.mcq ?? [], openText: data.openText ?? [] },
+            }
+          : d
+      )
+    );
+  } catch (err) {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, isGeneratingQuiz: false, quizError: err instanceof Error ? err.message : "Unbekannter Fehler" }
+          : d
+      )
+    );
+  }
+};
 
   // Zeigt ein bereits gespeichertes Quiz zu diesem Dokument an (GET
   // /api/quiz/quizGetForUpload) - ohne es neu zu generieren.
@@ -1809,28 +1637,26 @@ const triggerBackgroundSummary = async (uploadId: number) => {
                         {doc.name}
                       </span>
 
-                      <button
-                        onClick={() => handleViewSummary(doc.id)}
-                        disabled={doc.isLoadingSummaryView || doc.isUploading || !doc.uploadId}
-                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
-                      >
-                        {doc.isLoadingSummaryView ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : doc.isSummaryVisible ? (
-                          <EyeOff size={13} />
-                        ) : (
-                          <Eye size={13} />
+                      {doc.summaryReady && (
+                          <button
+                            onClick={() => handleViewSummary(doc.id)}
+                            disabled={doc.isLoadingSummaryView || doc.isUploading}
+                            className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
+                          >
+                            {doc.isLoadingSummaryView ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : doc.isSummaryVisible ? (
+                              <EyeOff size={13} />
+                            ) : (
+                              <Eye size={13} />
+                            )}
+                            {doc.isLoadingSummaryView ? "Loading…" : doc.isSummaryVisible ? "Hide summary" : "View summary"}
+                          </button>
                         )}
-                        {doc.isLoadingSummaryView
-                          ? "Loading…"
-                          : doc.isSummaryVisible
-                          ? "Hide summary"
-                          : "View summary"}
-                      </button>
-
+                    {doc.quizReady && (
                       <button
                         onClick={() => handleViewQuiz(doc.id)}
-                        disabled={doc.isLoadingQuizView || doc.isUploading || !doc.uploadId}
+                        disabled={doc.isLoadingQuizView || doc.isUploading}
                         className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
                       >
                         {doc.isLoadingQuizView ? (
@@ -1846,6 +1672,7 @@ const triggerBackgroundSummary = async (uploadId: number) => {
                           ? "Hide quiz"
                           : "View quiz"}
                       </button>
+                    )}
 
                       <span className="flex-1" />
 
@@ -2042,7 +1869,7 @@ const triggerBackgroundSummary = async (uploadId: number) => {
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <p className="text-[13px] font-medium text-foreground">
                             Quiz ({doc.quiz.flashcards.length} flashcards &middot;{" "}
-                            {doc.quiz.mcq.length} MCQ &middot; {doc.quiz.openText.length} open text)
+                            {doc.quiz.mcq.length} multiple choice &middot; {doc.quiz.openText.length} open text)
                           </p>
                           <div className="flex shrink-0 items-center gap-2">
                             <button

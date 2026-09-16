@@ -4,8 +4,7 @@ import { CoursesWidget } from "./CoursesWidget";
 import { TodoWidget } from "./TodoWidget";
 import { StudyPlanWidget } from "./StudyPlanWidget";
 import { AnalyticsWidget } from "./AnalyticsWidget";
-import { ReviewWidget } from "./ReviewWidget";
-import { WeekWidget } from "./WeekWidget";
+import { WeekWidget } from "./ WeekWidget";
 
 export const WIDGET_REGISTRY: WidgetDef[] = [
   {
@@ -35,13 +34,6 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "Per-course progress, open to check off items.",
     span: "grid",
     render: () => <AnalyticsWidget />,
-  },
-  {
-    id: "review",
-    label: "Due for Review",
-    description: "Flashcards that need another pass.",
-    span: "grid",
-    render: () => <ReviewWidget />,
   },
   {
     id: "week",

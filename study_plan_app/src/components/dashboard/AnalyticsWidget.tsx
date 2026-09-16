@@ -1,108 +1,91 @@
 "use client";
 
-import { useState } from "react";
-import { BarChart2, ChevronRight, Check } from "lucide-react";
-import type { CoursePlan } from "./types";
-import { INITIAL_COURSE_PLANS } from "./constants";
+import { useEffect, useState } from "react";
+import { Flame, Trophy, CalendarCheck } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+
+type StreakStats = {
+  streak: number;
+  longestStreak: number;
+  quizzesThisWeek: number;
+};
 
 export function AnalyticsWidget() {
-  const [coursePlans, setCoursePlans] = useState<CoursePlan[]>(INITIAL_COURSE_PLANS);
-  const [openCourseId, setOpenCourseId] = useState<string | null>(
-    INITIAL_COURSE_PLANS[0]?.id ?? null
-  );
+  const { userId } = useAuth();
+  const [stats, setStats] = useState<StreakStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleCourse = (id: string) => {
-    setOpenCourseId((prev) => (prev === id ? null : id));
-  };
+  useEffect(() => {
+    if (!userId) return;
 
-  const toggleItem = (courseId: string, itemId: string) => {
-    setCoursePlans((prev) =>
-      prev.map((c) =>
-        c.id === courseId
-          ? { ...c, items: c.items.map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)) }
-          : c
-      )
-    );
-  };
+    async function fetchStats() {
+      try {
+        const url = new URL("/api/streak/streakGet", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setStats(data.streak);
+      } catch (err) {
+        console.error("Failed to load streak stats:", err);
+        setError("Could not load your stats.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStats();
+  }, [userId]);
 
   return (
     <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
       <div className="mb-3 flex items-center gap-2.5">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 text-violet-500">
-          <BarChart2 size={14} />
+          <Flame size={14} />
         </span>
         <h3 className="text-[19px] font-semibold text-foreground font-serif">Analytics</h3>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2">
-        {coursePlans.length === 0 && (
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
-            <p className="text-[14px] leading-5 text-muted">
-              No courses yet &ndash; add a course to see progress.
+      {loading ? (
+        <p className="text-[13px] text-muted">Loading...</p>
+      ) : error ? (
+        <p className="text-[13px] text-rose">{error}</p>
+      ) : stats ? (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="flex flex-col items-center gap-1 rounded-xl border border-panel-border bg-[var(--sunken)] px-2 py-3">
+            <Flame size={15} className="text-accent" />
+            <p className="text-[18px] font-medium text-[var(--accent-strong)] font-serif">
+              {stats.streak}
+            </p>
+            <p className="text-center text-[9.5px] uppercase tracking-wider text-muted">
+              Current Streak
             </p>
           </div>
-        )}
-
-        {coursePlans.map((course) => {
-          const open = openCourseId === course.id;
-          const doneCount = course.items.filter((i) => i.done).length;
-          const total = course.items.length;
-          const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
-
-          return (
-            <div key={course.id} className="overflow-hidden rounded-xl border border-panel-border">
-              <button
-                onClick={() => toggleCourse(course.id)}
-                className="flex w-full items-center gap-2.5 bg-[var(--sunken)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--overlay)]"
-              >
-                <span className={`h-2 w-2 shrink-0 rounded-sm ${course.color}`} />
-                <span className="flex-1 text-[14.5px] text-[var(--text-secondary)]">
-                  {course.course}
-                </span>
-                <span className="text-[12px] text-muted">{percent}%</span>
-                <ChevronRight
-                  size={14}
-                  className={`shrink-0 text-muted transition-transform ${open ? "rotate-90" : ""}`}
-                />
-              </button>
-
-              <div className="h-1.5 w-full rounded-full bg-[var(--sunken)]">
-                <div
-                  className="h-1.5 rounded-full bg-accent transition-all"
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-
-              {open && (
-                <div className="flex flex-col gap-1 p-2">
-                  {course.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => toggleItem(course.id, item.id)}
-                      className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--overlay)]"
-                    >
-                      <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                          item.done ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
-                        }`}
-                      >
-                        {item.done && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
-                      </span>
-                      <span
-                        className={`text-[14.5px] transition-colors ${
-                          item.done ? "text-muted line-through" : "text-[var(--text-secondary)]"
-                        }`}
-                      >
-                        {item.task}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+          <div className="flex flex-col items-center gap-1 rounded-xl border border-panel-border bg-[var(--sunken)] px-2 py-3">
+            <Trophy size={15} className="text-accent" />
+            <p className="text-[18px] font-medium text-[var(--accent-strong)] font-serif">
+              {stats.longestStreak}
+            </p>
+            <p className="text-center text-[9.5px] uppercase tracking-wider text-muted">
+              Longest Streak
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-1 rounded-xl border border-panel-border bg-[var(--sunken)] px-2 py-3">
+            <CalendarCheck size={15} className="text-accent" />
+            <p className="text-[18px] font-medium text-[var(--accent-strong)] font-serif">
+              {stats.quizzesThisWeek}
+            </p>
+            <p className="text-center text-[9.5px] uppercase tracking-wider text-muted">
+              Quizzes This Week
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
+          <p className="text-[14px] leading-5 text-muted">No stats yet — take a quiz to get started.</p>
+        </div>
+      )}
     </div>
   );
 }

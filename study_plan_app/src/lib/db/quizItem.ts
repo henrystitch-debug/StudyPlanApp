@@ -122,7 +122,7 @@ export async function saveQuizItems(
       mcq.map((m) => ({
         question: m.question,
         answer: {
-          options: [m.answerA, m.answerB, m.answerC, m.answerD],
+          options: m.options,
           correct: m.correctIndex,
         },
       }))
