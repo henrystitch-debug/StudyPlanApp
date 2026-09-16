@@ -27,6 +27,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { type Course } from "@/types/course";
 import { gradientForCourse } from "@/components/dashboard/constants";
+import { QuizTakeButton, QuizExpandPanel } from "@/app/quiz_feature/QuizFocusArea";
+import { QuizPlayer } from "@/app/quiz_feature/QuizPlayer";
 
 type TopicIndexItem = {
   title: string;
@@ -70,10 +72,9 @@ type CourseDocument = {
   quiz?: Quiz;
   isGeneratingQuiz?: boolean;
   quizError?: string;
-  isQuizVisible?: boolean; // steuert, ob der Quiz-Block eingeblendet ist ("Quiz"-Anzeige-Button)
+  isTakeQuizOpen?: boolean; // steuert, ob die "Take Quiz"-Fläche ausgeklappt ist
   isLoadingQuizView?: boolean;
   quizViewError?: string;
-  isQuizContentExpanded?: boolean; // steuert, ob Flashcards/MCQ/Open Text ausgeklappt sind
   isDownloading?: boolean;
   downloadError?: string;
   isSummaryTextExpanded?: boolean;
@@ -1007,14 +1008,6 @@ export default function CoursesPage() {
     );
   };
 
-  const toggleQuizContentExpanded = (id: string) => {
-    setDocuments((prev) =>
-      prev.map((d) =>
-        d.id === id ? { ...d, isQuizContentExpanded: !d.isQuizContentExpanded } : d
-      )
-    );
-  };
-
   const handleCopy = async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -1241,8 +1234,6 @@ const triggerBackgroundSummary = async (uploadId: number) => {
             ? {
                 ...d,
                 isGeneratingQuiz: false,
-                isQuizVisible: true,
-                isQuizContentExpanded: true,
                 quiz: {
                   flashcards: data.flashcards ?? [],
                   mcq: data.mcq ?? [],
@@ -1267,27 +1258,23 @@ const triggerBackgroundSummary = async (uploadId: number) => {
     }
   };
 
-  // Zeigt ein bereits gespeichertes Quiz zu diesem Dokument an (GET
-  // /api/quiz/quizGetForUpload) - ohne es neu zu generieren.
-  const handleViewQuiz = async (id: string) => {
+  // Klappt die "Take Quiz"-Fläche auf/zu und lädt beim ersten Öffnen ein
+  // bereits gespeichertes Quiz zu diesem Dokument nach (GET
+  // /api/quiz/quizGetForUpload), ohne es neu zu generieren.
+  const toggleTakeQuiz = (id: string) => {
     const doc = documents.find((d) => d.id === id);
-    if (!doc || !doc.uploadId) return;
+    if (!doc) return;
 
-    if (doc.isQuizVisible) {
-      setDocuments((prev) =>
-        prev.map((d) => (d.id === id ? { ...d, isQuizVisible: false } : d))
-      );
-      return;
-    }
+    const willOpen = !doc.isTakeQuizOpen;
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, isTakeQuizOpen: willOpen } : d))
+    );
+    if (willOpen) ensureQuizLoaded(id);
+  };
 
-    if (doc.quiz) {
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === id ? { ...d, isQuizVisible: true, isQuizContentExpanded: true } : d
-        )
-      );
-      return;
-    }
+  const ensureQuizLoaded = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc || !doc.uploadId || doc.quiz || doc.isLoadingQuizView) return;
 
     setDocuments((prev) =>
       prev.map((d) =>
@@ -1307,15 +1294,7 @@ const triggerBackgroundSummary = async (uploadId: number) => {
 
       setDocuments((prev) =>
         prev.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                isLoadingQuizView: false,
-                isQuizVisible: true,
-                isQuizContentExpanded: true,
-                quiz: data.quiz,
-              }
-            : d
+          d.id === id ? { ...d, isLoadingQuizView: false, quiz: data.quiz } : d
         )
       );
     } catch (err) {
@@ -1828,24 +1807,11 @@ const triggerBackgroundSummary = async (uploadId: number) => {
                           : "View summary"}
                       </button>
 
-                      <button
-                        onClick={() => handleViewQuiz(doc.id)}
-                        disabled={doc.isLoadingQuizView || doc.isUploading || !doc.uploadId}
-                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
-                      >
-                        {doc.isLoadingQuizView ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : doc.isQuizVisible ? (
-                          <EyeOff size={13} />
-                        ) : (
-                          <Eye size={13} />
-                        )}
-                        {doc.isLoadingQuizView
-                          ? "Loading…"
-                          : doc.isQuizVisible
-                          ? "Hide quiz"
-                          : "View quiz"}
-                      </button>
+                      <QuizTakeButton
+                        open={!!doc.isTakeQuizOpen}
+                        onClick={() => toggleTakeQuiz(doc.id)}
+                        disabled={doc.isUploading || !doc.uploadId}
+                      />
 
                       <span className="flex-1" />
 
@@ -2037,126 +2003,59 @@ const triggerBackgroundSummary = async (uploadId: number) => {
                       </div>
                     )}
 
-                    {doc.quiz && doc.isQuizVisible && (
-                      <div className="border-t border-panel-border px-3 py-3">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-[13px] font-medium text-foreground">
-                            Quiz ({doc.quiz.flashcards.length} flashcards &middot;{" "}
-                            {doc.quiz.mcq.length} MCQ &middot; {doc.quiz.openText.length} open text)
-                          </p>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <button
-                              onClick={() => handleCopy(doc.id, quizToText(doc.quiz!))}
-                              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
-                            >
-                              {copiedId === doc.id ? (
-                                <Check size={13} />
-                              ) : (
-                                <Copy size={13} />
-                              )}
-                              {copiedId === doc.id ? "Copied" : "Copy"}
-                            </button>
-                            <button
-                              onClick={() => downloadQuizAsPdf(doc.quiz!, doc.name)}
-                              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
-                            >
-                              <FileDown size={13} />
-                              PDF
-                            </button>
-                          </div>
-                        </div>
+                    {doc.uploadId && (
+                      <QuizExpandPanel open={!!doc.isTakeQuizOpen}>
+                        <div className="border-t border-panel-border px-3 py-3">
+                          {doc.isLoadingQuizView ? (
+                            <p className="text-[12.5px] text-muted">Loading quiz…</p>
+                          ) : doc.quizViewError ? (
+                            <p className="text-[12.5px] text-rose">{doc.quizViewError}</p>
+                          ) : doc.quiz ? (
+                            <div className="flex flex-col gap-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleCopy(doc.id, quizToText(doc.quiz!))}
+                                  className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                                >
+                                  {copiedId === doc.id ? (
+                                    <Check size={13} />
+                                  ) : (
+                                    <Copy size={13} />
+                                  )}
+                                  {copiedId === doc.id ? "Copied" : "Copy"}
+                                </button>
+                                <button
+                                  onClick={() => downloadQuizAsPdf(doc.quiz!, doc.name)}
+                                  className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                                >
+                                  <FileDown size={13} />
+                                  PDF
+                                </button>
+                              </div>
 
-                        <button
-                          onClick={() => toggleQuizContentExpanded(doc.id)}
-                          className="mb-1.5 flex items-center gap-1 text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-foreground"
-                        >
-                          {doc.isQuizContentExpanded ? (
-                            <>
-                              <ChevronUp size={13} /> Minimize
-                            </>
+                              <QuizPlayer
+                                sourceLabel={doc.name}
+                                quiz={{
+                                  flashcards: doc.quiz.flashcards,
+                                  mcq: doc.quiz.mcq.map((q) => ({
+                                    question: q.question,
+                                    options: q.options,
+                                    correctIndices: [q.correctIndex],
+                                  })),
+                                  openText: doc.quiz.openText.map((q) => ({
+                                    question: q.question,
+                                    answer: q.modelAnswer,
+                                  })),
+                                }}
+                              />
+                            </div>
                           ) : (
-                            <>
-                              <ChevronDown size={13} /> Expand
-                            </>
-                          )}
-                        </button>
-
-                        {doc.isQuizContentExpanded && (
-                        <div className="flex flex-col gap-3">
-                          {doc.quiz.flashcards.length > 0 && (
-                            <div>
-                              <p className="mb-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                                Flashcards
-                              </p>
-                              <ul className="flex flex-col gap-1.5">
-                                {doc.quiz.flashcards.map((card, i) => (
-                                  <li
-                                    key={i}
-                                    className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
-                                  >
-                                    <span className="font-medium text-foreground">{card.question}</span>
-                                    {" — "}
-                                    {card.answer}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {doc.quiz.mcq.length > 0 && (
-                            <div>
-                              <p className="mb-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                                Multiple Choice
-                              </p>
-                              <ul className="flex flex-col gap-1.5">
-                                {doc.quiz.mcq.map((q, i) => (
-                                  <li
-                                    key={i}
-                                    className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
-                                  >
-                                    <p className="mb-1 font-medium text-foreground">{q.question}</p>
-                                    <ul className="flex flex-col gap-0.5 pl-3">
-                                      {q.options.map((option, optionIndex) => (
-                                        <li
-                                          key={optionIndex}
-                                          className={
-                                            optionIndex === q.correctIndex
-                                              ? "text-accent"
-                                              : undefined
-                                          }
-                                        >
-                                          {option}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {doc.quiz.openText.length > 0 && (
-                            <div>
-                              <p className="mb-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                                Open Text
-                              </p>
-                              <ul className="flex flex-col gap-1.5">
-                                {doc.quiz.openText.map((q, i) => (
-                                  <li
-                                    key={i}
-                                    className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
-                                  >
-                                    <span className="font-medium text-foreground">{q.question}</span>
-                                    {" — "}
-                                    {q.modelAnswer}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                            <p className="text-[12.5px] text-muted">
+                              No quiz saved for this document yet — click &quot;Quiz&quot; above to generate one.
+                            </p>
                           )}
                         </div>
-                        )}
-                      </div>
+                      </QuizExpandPanel>
                     )}
                   </div>
                 ))}
