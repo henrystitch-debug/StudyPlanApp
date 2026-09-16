@@ -2,12 +2,12 @@ import { LayoutDashboard, BookOpen, Flame, CalendarDays, ClipboardList, ListChec
 import type { NavItem, TodoItem, CoursePlan } from "./types";
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { label: "To Do", icon: ListChecks, href: "/todo" },
-  { label: "Quiz", icon: BookOpen, href: "/study" },
-  { label: "Streak", icon: Flame, href: "/streak" },
-  { label: "Calendar", icon: CalendarDays, href: "/calendar" },
-  { label: "Courses", icon: ClipboardList, href: "/courses" },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/", color: "#4361ee" },
+  { label: "To Do", icon: ListChecks, href: "/todo", color: "#a855f7" },
+  { label: "Quiz", icon: BookOpen, href: "/study", color: "#0ea5e9" },
+  { label: "Streak", icon: Flame, href: "/streak", color: "#ff9100" },
+  { label: "Calendar", icon: CalendarDays, href: "/calendar", color: "#2ec4b6" },
+  { label: "Courses", icon: ClipboardList, href: "/courses", color: "#ff5d8f" },
 ];
 
 export const WEEKDAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];

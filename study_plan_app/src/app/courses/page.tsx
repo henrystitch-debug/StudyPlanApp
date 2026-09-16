@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type Course } from "@/types/course";
 import { gradientForCourse } from "@/components/dashboard/constants";
+import { CoursesCover } from "@/components/courses/CoursesCover";
 
 type TopicIndexItem = {
   title: string;
@@ -1145,6 +1146,10 @@ export default function CoursesPage() {
       <h1 className="mb-6 text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
         Your Courses
       </h1>
+
+      {selectedCourse && (
+        <CoursesCover key={selectedCourse.courseId} courseId={selectedCourse.courseId} />
+      )}
 
       {isLoadingCourses ? (
         <div className="mb-8 flex min-h-[132px] items-center justify-center rounded-xl border border-panel-border bg-panel text-[12.5px] text-muted">

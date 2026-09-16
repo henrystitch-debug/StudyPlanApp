@@ -1094,23 +1094,29 @@ export default function CalendarPage() {
                   <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
                     Course (optional)
                   </label>
-                  <select
-                    value={addForm.courseId ?? ""}
-                    onChange={(e) =>
-                      setAddForm((f) => ({
-                        ...f,
-                        courseId: e.target.value ? Number(e.target.value) : null,
-                      }))
-                    }
-                    className="w-full rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-2 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-                  >
-                    <option value="">No course</option>
-                    {courses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={addForm.courseId ?? ""}
+                      onChange={(e) =>
+                        setAddForm((f) => ({
+                          ...f,
+                          courseId: e.target.value ? Number(e.target.value) : null,
+                        }))
+                      }
+                      className="w-full appearance-none rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-2 pr-8 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                    >
+                      <option value="">No course</option>
+                      {courses.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={15}
+                      className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted"
+                    />
+                  </div>
                 </div>
               )}
 

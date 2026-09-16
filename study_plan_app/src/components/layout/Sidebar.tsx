@@ -104,7 +104,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onClose} />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 transform flex-col border-r border-panel-border bg-[var(--sidebar)] transition-transform md:sticky md:top-0 md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 transform flex-col border-r border-panel-border bg-[var(--sidebar)] shadow-[var(--sidebar-shadow)] transition-transform md:sticky md:top-0 md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -147,11 +147,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 }`}
               >
                 <span
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-[var(--accent-strong)]/20 text-[var(--accent-strong)]"
-                      : "bg-[var(--overlay)] text-muted group-hover:text-foreground"
-                  }`}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors"
+                  style={{
+                    backgroundColor: `${item.color}${isActive ? "26" : "1a"}`,
+                    color: item.color,
+                    opacity: isDisabled ? 0.5 : 1,
+                  }}
                 >
                   <Icon size={16} />
                 </span>
