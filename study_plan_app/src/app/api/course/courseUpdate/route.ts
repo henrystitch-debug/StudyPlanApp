@@ -5,14 +5,13 @@ export async function PUT(request: Request) {
         const body = await request.json();
         const courseId = Number(body.courseId);
         const title = typeof body.title === "string" ? body.title.trim() : "";
-        const description = typeof body.description === "string" ? body.description : "";
         const semester = typeof body.semester === "string" ? body.semester : "";
 
         if (!courseId || Number.isNaN(courseId) || !title) {
             return Response.json({ error: "courseId and title are required" }, { status: 400 });
         }
 
-        const dbResponse = await updateCourse(courseId, title, description, semester);
+        const dbResponse = await updateCourse(courseId, title, semester);
 
         if (!dbResponse) {
             return Response.json({ error: "Course not found" }, { status: 404 });

@@ -19,6 +19,8 @@ import {
   Pencil,
   CalendarDays,
   Clock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/useAuth";
@@ -53,6 +55,7 @@ type CourseDocument = {
   id: string;
   name: string;
   uploadedLabel: string;
+  uploadedAt: number; // Epoch-ms, fürs Sortieren (neuester Upload zuerst)
   file?: File; // fehlt bei Dokumenten, die aus der DB nachgeladen wurden (kein Datei-Handle im Browser)
   courseId: number;
   uploadId?: number;
@@ -61,9 +64,16 @@ type CourseDocument = {
   summary?: DocumentSummary;
   isSummarizing?: boolean;
   summaryError?: string;
+  isSummaryVisible?: boolean; // steuert, ob der Summary-Block eingeblendet ist ("Summary"-Button)
+  isLoadingSummaryView?: boolean;
+  summaryViewError?: string;
   quiz?: Quiz;
   isGeneratingQuiz?: boolean;
   quizError?: string;
+  isQuizVisible?: boolean; // steuert, ob der Quiz-Block eingeblendet ist ("Quiz"-Anzeige-Button)
+  isLoadingQuizView?: boolean;
+  quizViewError?: string;
+  isQuizContentExpanded?: boolean; // steuert, ob Flashcards/MCQ/Open Text ausgeklappt sind
   isDownloading?: boolean;
   downloadError?: string;
   isSummaryTextExpanded?: boolean;
@@ -336,6 +346,111 @@ function downloadSummaryAsPdf(summary: DocumentSummary, sourceFileName: string) 
   doc.save(`${safeTitle || "summary"}.pdf`);
 }
 
+// Reine Textform des Quiz fürs Kopieren in die Zwischenablage.
+function quizToText(quiz: Quiz): string {
+  const lines: string[] = [];
+
+  if (quiz.flashcards.length > 0) {
+    lines.push("FLASHCARDS");
+    quiz.flashcards.forEach((c, i) => {
+      lines.push(`${i + 1}. ${c.question}`);
+      lines.push(`   Answer: ${c.answer}`);
+    });
+    lines.push("");
+  }
+
+  if (quiz.mcq.length > 0) {
+    lines.push("MULTIPLE CHOICE");
+    quiz.mcq.forEach((q, i) => {
+      lines.push(`${i + 1}. ${q.question}`);
+      q.options.forEach((option, optionIndex) => {
+        lines.push(`   ${optionIndex === q.correctIndex ? "*" : "-"} ${option}`);
+      });
+    });
+    lines.push("");
+  }
+
+  if (quiz.openText.length > 0) {
+    lines.push("OPEN TEXT");
+    quiz.openText.forEach((q, i) => {
+      lines.push(`${i + 1}. ${q.question}`);
+      lines.push(`   Model answer: ${q.modelAnswer}`);
+    });
+  }
+
+  return lines.join("\n").trim();
+}
+
+function downloadQuizAsPdf(quiz: Quiz, sourceFileName: string) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 48;
+  const maxWidth = pageWidth - margin * 2;
+  const lineHeight = 15;
+  let y = margin;
+
+  const ensureSpace = (needed: number) => {
+    if (y + needed > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  const titleLines = doc.splitTextToSize(`Quiz - ${sourceFileName}`, maxWidth);
+  doc.text(titleLines, margin, y + 14);
+  y += 14 + titleLines.length * 20;
+
+  const writeSection = (heading: string, bodyLines: string[]) => {
+    if (bodyLines.length === 0) return;
+    ensureSpace(28);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text(heading, margin, y);
+    y += lineHeight + 4;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    bodyLines.forEach((line) => {
+      const wrapped: string[] = doc.splitTextToSize(line, maxWidth);
+      wrapped.forEach((wLine) => {
+        ensureSpace(lineHeight);
+        doc.text(wLine, margin, y);
+        y += lineHeight;
+      });
+    });
+    y += 10;
+  };
+
+  const flashcardLines: string[] = [];
+  quiz.flashcards.forEach((c, i) => {
+    flashcardLines.push(`${i + 1}. ${c.question}`);
+    flashcardLines.push(`   Answer: ${c.answer}`);
+  });
+  writeSection("Flashcards", flashcardLines);
+
+  const mcqLines: string[] = [];
+  quiz.mcq.forEach((q, i) => {
+    mcqLines.push(`${i + 1}. ${q.question}`);
+    q.options.forEach((option, optionIndex) => {
+      mcqLines.push(`   ${optionIndex === q.correctIndex ? "[correct]" : "-"} ${option}`);
+    });
+  });
+  writeSection("Multiple Choice", mcqLines);
+
+  const openTextLines: string[] = [];
+  quiz.openText.forEach((q, i) => {
+    openTextLines.push(`${i + 1}. ${q.question}`);
+    openTextLines.push(`   Model answer: ${q.modelAnswer}`);
+  });
+  writeSection("Open Text", openTextLines);
+
+  const safeName = sourceFileName.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+  doc.save(`${safeName || "quiz"}_quiz.pdf`);
+}
+
 export default function CoursesPage() {
   const router = useRouter();
   const { userId, isAuthed } = useAuth();
@@ -350,19 +465,6 @@ export default function CoursesPage() {
   const [isLoadingPersistedUploads, setIsLoadingPersistedUploads] = useState(false);
   const [persistedUploadsError, setPersistedUploadsError] = useState<string | null>(null);
 
-  const [summaryTitles, setSummaryTitles] = useState<
-    { id: number; summaryId: number; title: string }[]
-  >([]);
-  const [deletingSummaryId, setDeletingSummaryId] = useState<number | null>(null);
-  const [deleteSummaryError, setDeleteSummaryError] = useState<string | null>(null);
-  const [isLoadingSummaryTitles, setIsLoadingSummaryTitles] = useState(false);
-  const [summaryTitlesError, setSummaryTitlesError] = useState<string | null>(null);
-
-  const [openSummaryId, setOpenSummaryId] = useState<number | null>(null);
-  const [openSummaryText, setOpenSummaryText] = useState<string | null>(null);
-  const [isLoadingOpenSummary, setIsLoadingOpenSummary] = useState(false);
-  const [openSummaryError, setOpenSummaryError] = useState<string | null>(null);
-
   const [studyPlanItems, setStudyPlanItems] = useState<StudyPlanItem[]>([]);
   const [isLoadingStudyPlan, setIsLoadingStudyPlan] = useState(false);
   const [studyPlanError, setStudyPlanError] = useState<string | null>(null);
@@ -374,6 +476,9 @@ export default function CoursesPage() {
   const [isGeneratingStudyPlan, setIsGeneratingStudyPlan] = useState(false);
   const [generateStudyPlanError, setGenerateStudyPlanError] = useState<string | null>(null);
   const [conflictCount, setConflictCount] = useState(0);
+  const [isStudyPlanCollapsed, setIsStudyPlanCollapsed] = useState(false);
+  const [isDeletingStudyPlan, setIsDeletingStudyPlan] = useState(false);
+  const [deleteStudyPlanError, setDeleteStudyPlanError] = useState<string | null>(null);
 
   // Uploads des Kurses, aus denen man auswählen kann, welche als Grundlage
   // für den Studyplan dienen sollen (statt automatisch alle zu nehmen).
@@ -407,40 +512,40 @@ export default function CoursesPage() {
     if (!userId) return; // wait until useAuth has resolved a real user
 
     const fetchCourses = async () => {
-  setIsLoadingCourses(true);
-  setCoursesError(null);
-  try {
-    const url = new URL("/api/course/coursesWithCounts", window.location.origin);
-    url.searchParams.set("userId", `${userId}`);
+      setIsLoadingCourses(true);
+      setCoursesError(null);
+      try {
+        const url = new URL("/api/course/coursesWithCounts", window.location.origin);
+        url.searchParams.set("userId", `${userId}`);
 
-    const response = await fetch(url);
-    const data = await response.json();
+        const response = await fetch(url);
+        const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error ?? "Kurse konnten nicht geladen werden");
-    }
+        if (!response.ok) {
+          throw new Error(data.error ?? "Kurse konnten nicht geladen werden");
+        }
 
-    const list: Course[] = (data.courses ?? []).map(
-  (row: {
-    course_id: number;
-    title: string;
-    semester?: string;
-    upload_count: string;
-  }) => ({
-    courseId: row.course_id,
-    title: row.title,
-    semester: row.semester ?? "",
-    uploadCount: Number(row.upload_count),
-  })
-);
+        const list: Course[] = (data.courses ?? []).map(
+          (row: {
+            course_id: number;
+            title: string;
+            semester?: string;
+            upload_count: string;
+          }) => ({
+            courseId: row.course_id,
+            title: row.title,
+            semester: row.semester ?? "",
+            uploadCount: Number(row.upload_count),
+          })
+        );
 
-    setCourses(list);
-  } catch (err) {
-    setCoursesError(err instanceof Error ? err.message : "Unbekannter Fehler");
-  } finally {
-    setIsLoadingCourses(false);
-  }
-};
+        setCourses(list);
+      } catch (err) {
+        setCoursesError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      } finally {
+        setIsLoadingCourses(false);
+      }
+    };
 
     fetchCourses();
   }, [userId]);
@@ -482,6 +587,7 @@ export default function CoursesPage() {
               uploadedLabel: row.uploaded_at
                 ? new Date(row.uploaded_at).toLocaleDateString()
                 : "",
+              uploadedAt: row.uploaded_at ? new Date(row.uploaded_at).getTime() : 0,
               courseId: selectedCourseId,
               uploadId: row.upload_id,
             }));
@@ -497,44 +603,6 @@ export default function CoursesPage() {
     fetchPersistedUploads();
   }, [selectedCourseId]);
 
-  // Lädt beim Auswählen eines Kurses die Titel bereits gespeicherter
-  // Zusammenfassungen (GET /api/summary/summaryGetTitles). Die Route selbst
-  // kennt aktuell keinen courseId-Filter - sie liefert immer alle Titel -
-  useEffect(() => {
-    if (!selectedCourseId) return;
-
-    const fetchSummaryTitles = async () => {
-      setIsLoadingSummaryTitles(true);
-      setSummaryTitlesError(null);
-      setOpenSummaryId(null);
-      setOpenSummaryText(null);
-      try {
-        const response = await fetch(`/api/summary/summaryGetTitles?courseId=${selectedCourseId}`);
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error ?? "Titel konnten nicht geladen werden");
-        }
-
-        // Jede Zeile ist { summary_id, upload_id, title } - summaryGet sucht per
-        // upload_id (id), summaryDelete per summary_id (summaryId).
-        const titles: { id: number; summaryId: number; title: string }[] = (data.titles ?? []).map(
-          (row: { summary_id: number; upload_id: number; title: string }) => ({
-            id: row.upload_id,
-            summaryId: row.summary_id,
-            title: row.title,
-          })
-        );
-        setSummaryTitles(titles);
-      } catch (err) {
-        setSummaryTitlesError(err instanceof Error ? err.message : "Unbekannter Fehler");
-      } finally {
-        setIsLoadingSummaryTitles(false);
-      }
-    };
-
-    fetchSummaryTitles();
-  }, [selectedCourseId]);
 
   // Lädt beim Auswählen eines Kurses einen evtl. schon existierenden Studyplan
   // (GET /api/studyplan/studyplanGet?courseId=...).
@@ -769,68 +837,47 @@ export default function CoursesPage() {
     }
   };
 
-  // Lädt die volle Zusammenfassung zu einem Titel per GET /api/summary/summaryGet.
-  const handleOpenSavedSummary = async (id: number) => {
-    if (openSummaryId === id) {
-      setOpenSummaryId(null);
-      setOpenSummaryText(null);
-      return;
-    }
+  // Löscht den kompletten Studyplan des Kurses per DELETE /api/studyplan/studyplanDelete
+  // (löscht dort auch die verknüpften Kalender-Events mit).
+  const handleDeleteStudyPlan = async () => {
+    if (!selectedCourseId) return;
 
-    setOpenSummaryId(id);
-    setOpenSummaryText(null);
-    setOpenSummaryError(null);
-    setIsLoadingOpenSummary(true);
+    setIsDeletingStudyPlan(true);
+    setDeleteStudyPlanError(null);
     try {
-      const response = await fetch(`/api/summary/summaryGet?id=${id}`);
+      const response = await fetch(
+        `/api/studyplan/studyplanDelete?courseId=${selectedCourseId}`,
+        { method: "DELETE" }
+      );
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Zusammenfassung konnte nicht geladen werden");
+        throw new Error(data.error ?? "Studyplan konnte nicht gelöscht werden");
       }
 
-      // summaryGet liefert jetzt die volle DB-Zeile (summary_id, upload_id, title,
-      // content, ...) statt eines reinen Strings - der Text steht in "content".
-      setOpenSummaryText(data.summary?.content ?? null);
+      setStudyPlanItems([]);
+      setConflictCount(0);
     } catch (err) {
-      setOpenSummaryError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      setDeleteStudyPlanError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
-      setIsLoadingOpenSummary(false);
+      setIsDeletingStudyPlan(false);
     }
   };
 
-  // Löscht eine gespeicherte Zusammenfassung per DELETE /api/summary/summaryDelete.
-  const handleDeleteSummary = async (entry: { id: number; summaryId: number }) => {
-    setDeletingSummaryId(entry.summaryId);
-    setDeleteSummaryError(null);
-    try {
-      const response = await fetch(`/api/summary/summaryDelete?id=${entry.summaryId}`, {
-        method: "DELETE",
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Zusammenfassung konnte nicht gelöscht werden");
-      }
-
-      setSummaryTitles((prev) => prev.filter((s) => s.summaryId !== entry.summaryId));
-      if (openSummaryId === entry.id) {
-        setOpenSummaryId(null);
-        setOpenSummaryText(null);
-      }
-    } catch (err) {
-      setDeleteSummaryError(err instanceof Error ? err.message : "Unbekannter Fehler");
-    } finally {
-      setDeletingSummaryId(null);
-    }
-  };
-
+  // Löschen/Anzeigen bereits gespeicherter Zusammenfassungen läuft jetzt direkt über
+  // die "View summary"-Aktion am jeweiligen Dokument (handleViewSummary weiter unten)
+  // statt über eine separate "Saved Summaries"-Box - handleOpenSavedSummary /
+  // handleDeleteSummary wurden deshalb entfernt.
   const selectedCourse = courses.find((c) => c.courseId === selectedCourseId);
-  const otherCourses = courses.filter((c) => c.courseId  !== selectedCourseId);
+  const otherCourses = courses.filter((c) => c.courseId !== selectedCourseId);
   const existingSemesters = Array.from(
     new Set(courses.map((c) => c.semester).filter((s): s is string => Boolean(s)))
   );
-  const visibleDocuments = documents.filter((d) => d.courseId === selectedCourseId);
+  // Neuester Upload immer ganz oben, unabhängig davon, in welcher Reihenfolge
+  // die Dokumente (Session-Uploads + aus der DB nachgeladene) in den State kamen.
+  const visibleDocuments = documents
+    .filter((d) => d.courseId === selectedCourseId)
+    .sort((a, b) => b.uploadedAt - a.uploadedAt);
 
   // Für die Anzeige "aus welchem Dokument stammt dieser Studyplan-Eintrag" -
   // documents enthält inzwischen alle Uploads des Kurses (Session + DB).
@@ -850,6 +897,7 @@ export default function CoursesPage() {
         id,
         name: file.name,
         uploadedLabel: "just now",
+        uploadedAt: Date.now(),
         file,
         courseId: selectedCourseId,
         isUploading: true,
@@ -881,6 +929,10 @@ export default function CoursesPage() {
             : d
         )
       );
+
+      if (data.response?.upload_id) {
+        triggerBackgroundSummary(data.response.upload_id); // was: handleGenerateSummary(id, data.response.upload_id)
+      }
     } catch (err) {
       setDocuments((prev) =>
         prev.map((d) =>
@@ -955,6 +1007,14 @@ export default function CoursesPage() {
     );
   };
 
+  const toggleQuizContentExpanded = (id: string) => {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, isQuizContentExpanded: !d.isQuizContentExpanded } : d
+      )
+    );
+  };
+
   const handleCopy = async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -965,39 +1025,172 @@ export default function CoursesPage() {
     }
   };
 
-  const handleGenerateSummary = async (id: string) => {
-    const doc = documents.find((d) => d.id === id);
-    if (!doc || !doc.uploadId) return;
+  const fetchSavedSummary = async (uploadId: number): Promise<DocumentSummary | null> => {
+  const summaryRes = await fetch(`/api/summary/summaryGet?id=${uploadId}`);
+  if (summaryRes.status === 404) return null;
+  const summaryData = await summaryRes.json();
+  if (!summaryRes.ok) {
+    throw new Error(summaryData.error ?? "Zusammenfassung konnte nicht geladen werden");
+  }
+
+  const topicsRes = await fetch(`/api/topicItem/topicIndexByUpload?uploadId=${uploadId}`);
+  const topicsData = topicsRes.ok ? await topicsRes.json() : { topics: [] };
+
+  return {
+    title: summaryData.summary?.title ?? "",
+    summary: summaryData.summary?.content ?? "",
+    topicIndex: (topicsData.topics ?? []).map(
+      (t: { title: string; description: string; location: string; estimated_effort: number }) => ({
+        title: t.title,
+        description: t.description,
+        location: t.location,
+        effort: t.estimated_effort,
+      })
+    ),
+  };
+};
+
+// uploadIdOverride lets handleFileUpload call this right after upload,
+// before `documents` state has re-rendered with the new uploadId.
+const handleGenerateSummary = async (id: string, uploadIdOverride?: number) => {
+  const doc = documents.find((d) => d.id === id);
+  const uploadId = uploadIdOverride ?? doc?.uploadId;
+  if (!uploadId) return;
+
+  setDocuments((prev) =>
+    prev.map((d) => (d.id === id ? { ...d, isSummarizing: true, summaryError: undefined } : d))
+  );
+
+  try {
+    // Already generated (either auto, on upload, or from an earlier click)? Just show it.
+    const existing = await fetchSavedSummary(uploadId);
+    if (existing) {
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: existing } : d))
+      );
+      return;
+    }
+
+    // Nothing saved yet — generate it now (covers manual clicks and the
+    // upload-time auto-trigger alike).
+    const response = await fetch("/api/summary/summaryCreate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Likely lost a race with the background job that fires on upload —
+      // check if it finished first before treating this as a real failure.
+      const retry = await fetchSavedSummary(uploadId);
+      if (retry) {
+        setDocuments((prev) =>
+          prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: retry } : d))
+        );
+        return;
+      }
+      throw new Error(data.error ?? "Zusammenfassung fehlgeschlagen");
+    }
 
     setDocuments((prev) =>
       prev.map((d) =>
-        d.id === id ? { ...d, isSummarizing: true, summaryError: undefined } : d
+        d.id === id
+          ? {
+              ...d,
+              isSummarizing: false,
+              summary: { title: data.title, summary: data.summary, topicIndex: data.topicIndex ?? [] },
+            }
+          : d
+      )
+    );
+  } catch (err) {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              isSummarizing: false,
+              summaryError: err instanceof Error ? err.message : "Unbekannter Fehler",
+            }
+          : d
+      )
+    );
+  }
+};
+// Fires in the background right after upload — saves a summary to the DB
+// without ever showing it. The user only sees it once they click "Summarize"
+// themselves (handleGenerateSummary), which fetches whatever's saved.
+const triggerBackgroundSummary = async (uploadId: number) => {
+  try {
+    const checkRes = await fetch(`/api/summary/summaryGet?id=${uploadId}`);
+    if (checkRes.status !== 404) return; // already exists (or an error) — nothing to do
+
+    await fetch("/api/summary/summaryCreate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId }),
+    });
+  } catch (err) {
+    console.error("Background summary generation failed:", err);
+    // deliberately silent to the user — this is invisible infrastructure,
+    // not something they asked for or are waiting on
+  }
+};
+
+  // Zeigt eine bereits gespeicherte Zusammenfassung zu diesem Dokument an
+  // (GET /api/summary/summaryGet, sucht dort per upload_id) - ersetzt die
+  // frühere separate "Saved Summaries"-Box, der Button sitzt jetzt direkt am
+  // jeweiligen Dokument.
+  const handleViewSummary = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc || !doc.uploadId) return;
+
+    // Schon eingeblendet -> nur wieder einklappen.
+    if (doc.isSummaryVisible) {
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, isSummaryVisible: false } : d))
+      );
+      return;
+    }
+
+    // Schon geladen (z.B. gerade erst generiert) -> nur wieder einblenden.
+    if (doc.summary) {
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, isSummaryVisible: true } : d))
+      );
+      return;
+    }
+
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, isLoadingSummaryView: true, summaryViewError: undefined }
+          : d
       )
     );
 
     try {
-      const response = await fetch("/api/summary/summaryCreate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId: doc.uploadId }),
-      });
-
+      const response = await fetch(`/api/summary/summaryGet?id=${doc.uploadId}`);
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Zusammenfassung fehlgeschlagen");
+        throw new Error(data.error ?? "Keine gespeicherte Zusammenfassung gefunden");
       }
 
+      // summaryGet liefert die volle DB-Zeile (summary_id, upload_id, title,
+      // content, ...) - Topic Index wird hier nicht mitgeladen, bleibt leer.
       setDocuments((prev) =>
         prev.map((d) =>
           d.id === id
             ? {
                 ...d,
-                isSummarizing: false,
+                isLoadingSummaryView: false,
+                isSummaryVisible: true,
                 summary: {
-                  title: data.title,
-                  summary: data.summary,
-                  topicIndex: data.topicIndex ?? [],
+                  title: data.summary?.title ?? "Summary",
+                  summary: data.summary?.content ?? "",
+                  topicIndex: d.summary?.topicIndex ?? [],
                 },
               }
             : d
@@ -1009,8 +1202,8 @@ export default function CoursesPage() {
           d.id === id
             ? {
                 ...d,
-                isSummarizing: false,
-                summaryError:
+                isLoadingSummaryView: false,
+                summaryViewError:
                   err instanceof Error ? err.message : "Unbekannter Fehler",
               }
             : d
@@ -1048,6 +1241,8 @@ export default function CoursesPage() {
             ? {
                 ...d,
                 isGeneratingQuiz: false,
+                isQuizVisible: true,
+                isQuizContentExpanded: true,
                 quiz: {
                   flashcards: data.flashcards ?? [],
                   mcq: data.mcq ?? [],
@@ -1065,6 +1260,72 @@ export default function CoursesPage() {
                 ...d,
                 isGeneratingQuiz: false,
                 quizError: err instanceof Error ? err.message : "Unbekannter Fehler",
+              }
+            : d
+        )
+      );
+    }
+  };
+
+  // Zeigt ein bereits gespeichertes Quiz zu diesem Dokument an (GET
+  // /api/quiz/quizGetForUpload) - ohne es neu zu generieren.
+  const handleViewQuiz = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc || !doc.uploadId) return;
+
+    if (doc.isQuizVisible) {
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, isQuizVisible: false } : d))
+      );
+      return;
+    }
+
+    if (doc.quiz) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id ? { ...d, isQuizVisible: true, isQuizContentExpanded: true } : d
+        )
+      );
+      return;
+    }
+
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, isLoadingQuizView: true, quizViewError: undefined }
+          : d
+      )
+    );
+
+    try {
+      const response = await fetch(`/api/quiz/quizGetForUpload?uploadId=${doc.uploadId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Kein gespeichertes Quiz gefunden");
+      }
+
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                isLoadingQuizView: false,
+                isQuizVisible: true,
+                isQuizContentExpanded: true,
+                quiz: data.quiz,
+              }
+            : d
+        )
+      );
+    } catch (err) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                isLoadingQuizView: false,
+                quizViewError: err instanceof Error ? err.message : "Unbekannter Fehler",
               }
             : d
         )
@@ -1282,83 +1543,46 @@ export default function CoursesPage() {
             </label>
           </section>
 
-          {(isLoadingSummaryTitles || summaryTitlesError || summaryTitles.length > 0) && (
-            <section className="mb-6">
-              <h2 className="mb-3 text-[15px] font-medium text-foreground font-serif">
-                Saved Summaries
-              </h2>
-              {isLoadingSummaryTitles ? (
-                <p className="text-[13px] text-muted">Loading…</p>
-              ) : summaryTitlesError ? (
-                <p className="text-[13px] text-rose">{summaryTitlesError}</p>
-              ) : (
-                <>
-                  {deleteSummaryError && (
-                    <p className="mb-1.5 text-[12px] text-rose">{deleteSummaryError}</p>
-                  )}
-                  <ul className="flex flex-col gap-1.5">
-                    {summaryTitles.map((entry) => (
-                    <li
-                      key={entry.summaryId}
-                      className="rounded-lg border border-panel-border bg-panel"
-                    >
-                      <div className="group flex items-center">
-                        <button
-                          onClick={() => handleOpenSavedSummary(entry.id)}
-                          className="flex flex-1 items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
-                        >
-                          <FileIconLucide size={15} className="shrink-0 text-accent" />
-                          <span className="flex-1 truncate">{entry.title || "Untitled"}</span>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSummary(entry)}
-                          disabled={deletingSummaryId === entry.summaryId}
-                          className="shrink-0 rounded p-1.5 mr-2 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100 disabled:opacity-50"
-                          aria-label="Delete summary"
-                        >
-                          {deletingSummaryId === entry.summaryId ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={14} />
-                          )}
-                        </button>
-                      </div>
-
-                      {openSummaryId === entry.id && (
-                        <div className="border-t border-panel-border px-3 py-2.5">
-                          {isLoadingOpenSummary ? (
-                            <p className="text-[12.5px] text-muted">Loading…</p>
-                          ) : openSummaryError ? (
-                            <p className="text-[12.5px] text-rose">{openSummaryError}</p>
-                          ) : (
-                            <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
-                              {openSummaryText}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </section>
-          )}
-
           <section className="mb-8">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-[15px] font-medium text-foreground font-serif">
-                Study Plan
-              </h2>
               <button
-                onClick={() => setShowStudyPlanForm((v) => !v)}
-                className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                onClick={() => setIsStudyPlanCollapsed((v) => !v)}
+                className="flex items-center gap-1.5 text-[15px] font-medium text-foreground font-serif hover:text-[var(--text-secondary)]"
               >
-                <CalendarPlus size={13} />
-                {studyPlanItems.length > 0 ? "Regenerate" : "Generate Study Plan"}
+                {isStudyPlanCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                Study Plan
               </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {studyPlanItems.length > 0 && (
+                  <button
+                    onClick={handleDeleteStudyPlan}
+                    disabled={isDeletingStudyPlan}
+                    className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] hover:text-rose disabled:opacity-50"
+                  >
+                    {isDeletingStudyPlan ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={13} />
+                    )}
+                    Delete
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowStudyPlanForm((v) => !v)}
+                  className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                >
+                  <CalendarPlus size={13} />
+                  {studyPlanItems.length > 0 ? "Regenerate" : "Generate Study Plan"}
+                </button>
+              </div>
             </div>
 
+            {deleteStudyPlanError && (
+              <p className="mb-3 text-[12.5px] text-rose">{deleteStudyPlanError}</p>
+            )}
+
+            {!isStudyPlanCollapsed && (
+            <>
             {showStudyPlanForm && (
               <div className="mb-3 flex flex-col gap-2.5 rounded-xl border border-panel-border bg-panel p-3.5">
                 <div>
@@ -1553,6 +1777,8 @@ export default function CoursesPage() {
                 </ul>
               </>
             )}
+            </>
+            )}
           </section>
 
           <section>
@@ -1579,9 +1805,50 @@ export default function CoursesPage() {
                   >
                     <div className="group flex items-center gap-2.5 px-3 py-2.5">
                       <FileIconLucide size={15} className="shrink-0 text-accent" />
-                      <span className="flex-1 truncate text-[13.5px] text-[var(--text-secondary)]">
+                      <span className="max-w-[30%] shrink truncate text-[13.5px] text-[var(--text-secondary)]">
                         {doc.name}
                       </span>
+
+                      <button
+                        onClick={() => handleViewSummary(doc.id)}
+                        disabled={doc.isLoadingSummaryView || doc.isUploading || !doc.uploadId}
+                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
+                      >
+                        {doc.isLoadingSummaryView ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : doc.isSummaryVisible ? (
+                          <EyeOff size={13} />
+                        ) : (
+                          <Eye size={13} />
+                        )}
+                        {doc.isLoadingSummaryView
+                          ? "Loading…"
+                          : doc.isSummaryVisible
+                          ? "Hide summary"
+                          : "View summary"}
+                      </button>
+
+                      <button
+                        onClick={() => handleViewQuiz(doc.id)}
+                        disabled={doc.isLoadingQuizView || doc.isUploading || !doc.uploadId}
+                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
+                      >
+                        {doc.isLoadingQuizView ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : doc.isQuizVisible ? (
+                          <EyeOff size={13} />
+                        ) : (
+                          <Eye size={13} />
+                        )}
+                        {doc.isLoadingQuizView
+                          ? "Loading…"
+                          : doc.isQuizVisible
+                          ? "Hide quiz"
+                          : "View quiz"}
+                      </button>
+
+                      <span className="flex-1" />
+
                       <span className="shrink-0 text-[11px] text-muted">
                         {doc.isUploading ? "uploading…" : doc.uploadedLabel}
                       </span>
@@ -1663,13 +1930,25 @@ export default function CoursesPage() {
                       </p>
                     )}
 
+                    {doc.summaryViewError && (
+                      <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">
+                        {doc.summaryViewError}
+                      </p>
+                    )}
+
+                    {doc.quizViewError && (
+                      <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">
+                        {doc.quizViewError}
+                      </p>
+                    )}
+
                     {doc.downloadError && (
                       <p className="border-t border-panel-border px-3 py-2 text-[12px] text-rose">
                         {doc.downloadError}
                       </p>
                     )}
 
-                    {doc.summary && (
+                    {doc.summary && doc.isSummaryVisible && (
                       <div className="border-t border-panel-border px-3 py-3">
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <p className="text-[13px] font-medium text-foreground">
@@ -1758,13 +2037,51 @@ export default function CoursesPage() {
                       </div>
                     )}
 
-                    {doc.quiz && (
+                    {doc.quiz && doc.isQuizVisible && (
                       <div className="border-t border-panel-border px-3 py-3">
-                        <p className="mb-2 text-[13px] font-medium text-foreground">
-                          Quiz ({doc.quiz.flashcards.length} flashcards &middot;{" "}
-                          {doc.quiz.mcq.length} MCQ &middot; {doc.quiz.openText.length} open text)
-                        </p>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-[13px] font-medium text-foreground">
+                            Quiz ({doc.quiz.flashcards.length} flashcards &middot;{" "}
+                            {doc.quiz.mcq.length} MCQ &middot; {doc.quiz.openText.length} open text)
+                          </p>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <button
+                              onClick={() => handleCopy(doc.id, quizToText(doc.quiz!))}
+                              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                            >
+                              {copiedId === doc.id ? (
+                                <Check size={13} />
+                              ) : (
+                                <Copy size={13} />
+                              )}
+                              {copiedId === doc.id ? "Copied" : "Copy"}
+                            </button>
+                            <button
+                              onClick={() => downloadQuizAsPdf(doc.quiz!, doc.name)}
+                              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                            >
+                              <FileDown size={13} />
+                              PDF
+                            </button>
+                          </div>
+                        </div>
 
+                        <button
+                          onClick={() => toggleQuizContentExpanded(doc.id)}
+                          className="mb-1.5 flex items-center gap-1 text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-foreground"
+                        >
+                          {doc.isQuizContentExpanded ? (
+                            <>
+                              <ChevronUp size={13} /> Minimize
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={13} /> Expand
+                            </>
+                          )}
+                        </button>
+
+                        {doc.isQuizContentExpanded && (
                         <div className="flex flex-col gap-3">
                           {doc.quiz.flashcards.length > 0 && (
                             <div>
@@ -1838,6 +2155,7 @@ export default function CoursesPage() {
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
                     )}
                   </div>
