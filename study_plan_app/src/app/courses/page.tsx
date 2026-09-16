@@ -929,6 +929,10 @@ export default function CoursesPage() {
             : d
         )
       );
+
+      if (data.response?.upload_id) {
+        triggerBackgroundSummary(data.response.upload_id); // was: handleGenerateSummary(id, data.response.upload_id)
+      }
     } catch (err) {
       setDocuments((prev) =>
         prev.map((d) =>
@@ -1021,60 +1025,118 @@ export default function CoursesPage() {
     }
   };
 
-  const handleGenerateSummary = async (id: string) => {
-    const doc = documents.find((d) => d.id === id);
-    if (!doc || !doc.uploadId) return;
+  const fetchSavedSummary = async (uploadId: number): Promise<DocumentSummary | null> => {
+  const summaryRes = await fetch(`/api/summary/summaryGet?id=${uploadId}`);
+  if (summaryRes.status === 404) return null;
+  const summaryData = await summaryRes.json();
+  if (!summaryRes.ok) {
+    throw new Error(summaryData.error ?? "Zusammenfassung konnte nicht geladen werden");
+  }
+
+  const topicsRes = await fetch(`/api/topicItem/topicIndexByUpload?uploadId=${uploadId}`);
+  const topicsData = topicsRes.ok ? await topicsRes.json() : { topics: [] };
+
+  return {
+    title: summaryData.summary?.title ?? "",
+    summary: summaryData.summary?.content ?? "",
+    topicIndex: (topicsData.topics ?? []).map(
+      (t: { title: string; description: string; location: string; estimated_effort: number }) => ({
+        title: t.title,
+        description: t.description,
+        location: t.location,
+        effort: t.estimated_effort,
+      })
+    ),
+  };
+};
+
+// uploadIdOverride lets handleFileUpload call this right after upload,
+// before `documents` state has re-rendered with the new uploadId.
+const handleGenerateSummary = async (id: string, uploadIdOverride?: number) => {
+  const doc = documents.find((d) => d.id === id);
+  const uploadId = uploadIdOverride ?? doc?.uploadId;
+  if (!uploadId) return;
+
+  setDocuments((prev) =>
+    prev.map((d) => (d.id === id ? { ...d, isSummarizing: true, summaryError: undefined } : d))
+  );
+
+  try {
+    // Already generated (either auto, on upload, or from an earlier click)? Just show it.
+    const existing = await fetchSavedSummary(uploadId);
+    if (existing) {
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: existing } : d))
+      );
+      return;
+    }
+
+    // Nothing saved yet — generate it now (covers manual clicks and the
+    // upload-time auto-trigger alike).
+    const response = await fetch("/api/summary/summaryCreate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Likely lost a race with the background job that fires on upload —
+      // check if it finished first before treating this as a real failure.
+      const retry = await fetchSavedSummary(uploadId);
+      if (retry) {
+        setDocuments((prev) =>
+          prev.map((d) => (d.id === id ? { ...d, isSummarizing: false, summary: retry } : d))
+        );
+        return;
+      }
+      throw new Error(data.error ?? "Zusammenfassung fehlgeschlagen");
+    }
 
     setDocuments((prev) =>
       prev.map((d) =>
-        d.id === id ? { ...d, isSummarizing: true, summaryError: undefined } : d
+        d.id === id
+          ? {
+              ...d,
+              isSummarizing: false,
+              summary: { title: data.title, summary: data.summary, topicIndex: data.topicIndex ?? [] },
+            }
+          : d
       )
     );
+  } catch (err) {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              isSummarizing: false,
+              summaryError: err instanceof Error ? err.message : "Unbekannter Fehler",
+            }
+          : d
+      )
+    );
+  }
+};
+// Fires in the background right after upload — saves a summary to the DB
+// without ever showing it. The user only sees it once they click "Summarize"
+// themselves (handleGenerateSummary), which fetches whatever's saved.
+const triggerBackgroundSummary = async (uploadId: number) => {
+  try {
+    const checkRes = await fetch(`/api/summary/summaryGet?id=${uploadId}`);
+    if (checkRes.status !== 404) return; // already exists (or an error) — nothing to do
 
-    try {
-      const response = await fetch("/api/summary/summaryCreate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId: doc.uploadId }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Zusammenfassung fehlgeschlagen");
-      }
-
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                isSummarizing: false,
-                isSummaryVisible: true,
-                summary: {
-                  title: data.title,
-                  summary: data.summary,
-                  topicIndex: data.topicIndex ?? [],
-                },
-              }
-            : d
-        )
-      );
-    } catch (err) {
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                isSummarizing: false,
-                summaryError:
-                  err instanceof Error ? err.message : "Unbekannter Fehler",
-              }
-            : d
-        )
-      );
-    }
-  };
+    await fetch("/api/summary/summaryCreate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId }),
+    });
+  } catch (err) {
+    console.error("Background summary generation failed:", err);
+    // deliberately silent to the user — this is invisible infrastructure,
+    // not something they asked for or are waiting on
+  }
+};
 
   // Zeigt eine bereits gespeicherte Zusammenfassung zu diesem Dokument an
   // (GET /api/summary/summaryGet, sucht dort per upload_id) - ersetzt die

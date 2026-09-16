@@ -58,7 +58,7 @@ export async function POST (request: Request){
     catch(err){
         console.error(err);
         return Response.json(
-            { error: "Error while creating summary and topic index" },
+            { error: "Couldn't create summary" },
             { status: 500})
         }
 }
