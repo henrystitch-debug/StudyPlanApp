@@ -1,16 +1,13 @@
-import { LayoutDashboard, BookOpen, Flame, CalendarDays, ClipboardList, ListChecks, BarChart2 } from "lucide-react";
+import { LayoutDashboard, BookOpen, Flame, CalendarDays, ClipboardList, ListChecks } from "lucide-react";
 import type { NavItem, TodoItem, CoursePlan } from "./types";
 
-// TODO: "Analytics" hat noch keine eigene Seite – Link zeigt vorerst auf "#"
-// (Sidebar behandelt das als deaktiviert), bis die Seite existiert.
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { label: "Flashcards", icon: BookOpen, href: "/study" },
-  { label: "Streak", icon: Flame, href: "/streak" },
-  { label: "Calendar", icon: CalendarDays, href: "/calendar" },
-  { label: "Courses", icon: ClipboardList, href: "/courses" },
-  { label: "To-do", icon: ListChecks, href: "/todos" },
-  { label: "Analytics", icon: BarChart2, href: "#" },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/", color: "#4361ee" },
+  { label: "To Do", icon: ListChecks, href: "/todo", color: "#a855f7" },
+  { label: "Quiz", icon: BookOpen, href: "/study", color: "#0ea5e9" },
+  { label: "Streak", icon: Flame, href: "/streak", color: "#ff9100" },
+  { label: "Calendar", icon: CalendarDays, href: "/calendar", color: "#2ec4b6" },
+  { label: "Courses", icon: ClipboardList, href: "/courses", color: "#ff5d8f" },
 ];
 
 export const WEEKDAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
@@ -49,4 +46,4 @@ export function gradientForCourse(courseId: number) {
   return GRADIENTS[courseId % GRADIENTS.length];
 }
 
-export const DEFAULT_WIDGET_IDS = ["focus", "courses", "todo", "review", "week", "analytics"];
+export const DEFAULT_WIDGET_IDS = ["focus", "courses", "todo", "review", "week", "weather", "time"];

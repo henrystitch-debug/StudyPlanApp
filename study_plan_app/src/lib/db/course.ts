@@ -74,10 +74,14 @@ export async function getCoursesWithUploadCounts(userId: number) {
        c.course_id,
        c.title,
        c.semester,
-       COUNT(u.upload_id) AS upload_count,
-       MAX(u.uploaded_at) AS last_uploaded_at
+       COUNT(DISTINCT u.upload_id) AS upload_count,
+       MAX(u.uploaded_at) AS last_uploaded_at,
+       COUNT(DISTINCT spi.study_plan_item_id) AS item_count,
+       COUNT(DISTINCT spi.study_plan_item_id) FILTER (WHERE spi.is_completed) AS completed_item_count
      FROM course c
      LEFT JOIN upload u ON u.course_id = c.course_id
+     LEFT JOIN study_plan sp ON sp.course_id = c.course_id
+     LEFT JOIN study_plan_item spi ON spi.study_plan_id = sp.study_plan_id
      WHERE c.user_id = $1
      GROUP BY c.course_id
      ORDER BY c.course_id`,

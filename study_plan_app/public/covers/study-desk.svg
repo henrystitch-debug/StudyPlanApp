@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sdSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b2140"/>
+      <stop offset="60%" stop-color="#232a52"/>
+      <stop offset="100%" stop-color="#2c2a4a"/>
+    </linearGradient>
+    <radialGradient id="sdGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffe7ad" stop-opacity="0.9"/>
+      <stop offset="55%" stop-color="#ffb347" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sdShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a3f6b"/>
+      <stop offset="100%" stop-color="#242850"/>
+    </linearGradient>
+    <linearGradient id="sdDesk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b2f45"/>
+      <stop offset="100%" stop-color="#241c2c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="400" fill="url(#sdSky)"/>
+
+  <!-- lamp glow -->
+  <circle cx="1180" cy="110" r="230" fill="url(#sdGlow)">
+    <animate attributeName="opacity" values="1;0.75;1" dur="4.5s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- lamp -->
+  <g>
+    <path d="M1180,10 L1120,120 L1240,120 Z" fill="url(#sdShade)"/>
+    <rect x="1174" y="120" width="12" height="90" fill="#4a4e78"/>
+    <ellipse cx="1180" cy="214" rx="46" ry="10" fill="#4a4e78"/>
+  </g>
+
+  <!-- stars -->
+  <g fill="#fdf3d8" opacity="0.8">
+    <circle cx="220" cy="70" r="2.4"><animate attributeName="opacity" values="0.8;0.2;0.8" dur="3s" repeatCount="indefinite"/></circle>
+    <circle cx="340" cy="140" r="1.8"><animate attributeName="opacity" values="0.3;0.9;0.3" dur="3.6s" repeatCount="indefinite"/></circle>
+    <circle cx="520" cy="60" r="2"><animate attributeName="opacity" values="0.7;0.2;0.7" dur="4.1s" repeatCount="indefinite"/></circle>
+    <circle cx="1420" cy="90" r="2.2"><animate attributeName="opacity" values="0.8;0.3;0.8" dur="3.3s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- desk -->
+  <rect x="0" y="300" width="1600" height="100" fill="url(#sdDesk)"/>
+  <rect x="0" y="300" width="1600" height="6" fill="#5a4a63"/>
+
+  <!-- stack of books -->
+  <g transform="translate(760,300)">
+    <rect x="-170" y="-26" width="340" height="26" rx="4" fill="#c9573f"/>
+    <rect x="-150" y="-50" width="300" height="26" rx="4" fill="#3f8f7a"/>
+    <rect x="-120" y="-74" width="240" height="26" rx="4" fill="#dba43a"/>
+    <rect x="-90" y="-98" width="180" height="26" rx="4" fill="#4f6fb0"/>
+  </g>
+
+  <!-- mug -->
+  <g transform="translate(1010,270)">
+    <path d="M-32,0 L26,0 L20,52 Q-3,66 -26,52 Z" fill="#e7e2d8"/>
+    <path d="M26,10 Q56,10 56,30 Q56,50 26,44" fill="none" stroke="#e7e2d8" stroke-width="9"/>
+    <path d="M-6,-24 Q-14,-36 -4,-46" stroke="#cfd6ea" stroke-width="4" fill="none" opacity="0.7">
+      <animate attributeName="opacity" values="0.7;0.1;0.7" dur="2.6s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <!-- pencil -->
+  <g transform="translate(560,286) rotate(-18)">
+    <rect x="0" y="0" width="150" height="14" rx="3" fill="#f2c14e"/>
+    <path d="M150,0 L172,7 L150,14 Z" fill="#e39a3b"/>
+    <rect x="-10" y="0" width="12" height="14" fill="#e8a8a0"/>
+  </g>
+</svg>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ListChecks, Plus } from "lucide-react";
+import { Check, ListChecks, Plus, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type TodoItem = {
@@ -96,6 +96,23 @@ export function TodoWidget() {
     }
   };
 
+  const removeTodo = async (id: number) => {
+    if (!userId) return;
+    const prevTodos = todos;
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+
+    try {
+      const url = new URL("/api/todo/todoDelete", window.location.origin);
+      url.searchParams.set("userId", `${userId}`);
+      url.searchParams.set("todoId", `${id}`);
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
+    } catch (err) {
+      console.error(err);
+      setTodos(prevTodos); // restore on failure
+    }
+  };
+
   const doneCount = todos.filter((t) => t.done).length;
 
   return (
@@ -119,26 +136,37 @@ export function TodoWidget() {
           <p className="text-[13px] text-muted">No tasks yet.</p>
         ) : (
           todos.map((todo) => (
-            <button
+            <div
               key={todo.id}
-              onClick={() => toggleTodo(todo.id)}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--overlay)]"
+              className="group flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--overlay)]"
             >
-              <span
-                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                  todo.done ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
-                }`}
+              <button
+                onClick={() => toggleTodo(todo.id)}
+                className="flex flex-1 items-center gap-2.5 text-left"
               >
-                {todo.done && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
-              </span>
-              <span
-                className={`text-[14.5px] transition-colors ${
-                  todo.done ? "text-muted line-through" : "text-[var(--text-secondary)]"
-                }`}
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                    todo.done ? "border-accent bg-accent" : "border-panel-border bg-[var(--sunken)]"
+                  }`}
+                >
+                  {todo.done && <Check size={11} strokeWidth={3} className="text-accent-foreground" />}
+                </span>
+                <span
+                  className={`text-[14.5px] transition-colors ${
+                    todo.done ? "text-muted line-through" : "text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {todo.label}
+                </span>
+              </button>
+              <button
+                onClick={() => removeTodo(todo.id)}
+                aria-label="Delete task"
+                className="shrink-0 rounded-md p-1 text-muted opacity-0 transition-opacity hover:text-rose group-hover:opacity-100"
               >
-                {todo.label}
-              </span>
-            </button>
+                <X size={13} />
+              </button>
+            </div>
           ))
         )}
       </div>

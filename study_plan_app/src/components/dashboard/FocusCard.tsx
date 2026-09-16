@@ -3,6 +3,31 @@
 import { useEffect, useRef, useState } from "react";
 import { Timer } from "lucide-react";
 
+const MOTIVATIONAL_QUOTES = [
+  "Small steps every day.",
+  "Discipline beats motivation.",
+  "Progress, not perfection.",
+  "Show up. That's the whole plan.",
+  "Future you is watching.",
+  "One focused hour beats five distracted ones.",
+  "Done is better than perfect.",
+  "Consistency compounds.",
+  "You don't have to be great to start.",
+  "The work you avoid is the work that matters most.",
+  "Rest, don't quit.",
+  "Deep work, shallow distractions.",
+  "Every session counts.",
+  "Momentum starts with the first minute.",
+  "Your only competition is yesterday's you.",
+];
+
+// A new quote each calendar day — same quote all day, everyone sees the
+// same one since it's keyed off the date rather than random per render.
+function quoteOfTheDay() {
+  const dayIndex = Math.floor(Date.now() / 86_400_000);
+  return MOTIVATIONAL_QUOTES[dayIndex % MOTIVATIONAL_QUOTES.length];
+}
+
 function formatTime(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const s = Math.floor(totalSeconds % 60).toString().padStart(2, "0");
@@ -38,6 +63,8 @@ export function FocusCard() {
     setSecondsLeft(DURATION);
   };
 
+  const [quote] = useState(quoteOfTheDay);
+
   return (
     <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
@@ -49,8 +76,8 @@ export function FocusCard() {
         </div>
         <span className="text-[12px] text-muted">Round 1</span>
       </div>
-      <p className="mb-4 text-[13px] leading-5 text-muted">
-        25 minutes, nothing else.
+      <p className="mb-4 text-[13px] italic leading-5 text-muted">
+        &ldquo;{quote}&rdquo;
       </p>
 
       <div className="mt-auto flex flex-col items-center gap-3 rounded-xl border border-panel-border bg-[var(--sunken)] py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">

@@ -29,20 +29,20 @@ import {
 
 const CSS = `
   .lp-root {
-    --bg: #0a0d1a;
-    --panel: #12162a;
-    --panel-border: rgba(255, 255, 255, 0.06);
-    --overlay: rgba(255, 255, 255, 0.04);
-    --overlay-strong: rgba(255, 255, 255, 0.08);
+    --bg: #0d0817;
+    --panel: #17102a;
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --overlay: rgba(255, 255, 255, 0.05);
+    --overlay-strong: rgba(255, 255, 255, 0.1);
     --fg: #ededf3;
     --fg-secondary: #cbd5e1;
     --muted: #7c8399;
     --accent: #f6a934;
     --accent-foreground: #1a1305;
-    --accent-strong: #fde68a;
-    --rose: #fb7185;
+    --accent-strong: #fbc94b;
+    --rose: #ff4d8d;
     --emerald: #7fae86;
-    --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.18), 0 2px 18px rgba(246, 169, 52, 0.12);
+    --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.22), 0 2px 20px rgba(246, 169, 52, 0.15);
 
     position: relative;
     min-height: 100vh;
@@ -56,18 +56,19 @@ const CSS = `
 
   /* Light mode — driven by the app-wide .light class on <html> (useTheme). */
   :root.light .lp-root {
-    --bg: #eef1fa;
+    --bg: #ffffff;
     --panel: #ffffff;
-    --panel-border: rgba(18, 20, 42, 0.1);
-    --overlay: rgba(18, 20, 70, 0.05);
-    --overlay-strong: rgba(18, 20, 70, 0.1);
-    --fg: #12142a;
-    --fg-secondary: #2a2c52;
-    --muted: #565a86;
-    --accent-strong: #059669;
-    --rose: #e11d48;
-    --emerald: #4b7a52;
-    --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.28), 0 2px 18px rgba(246, 169, 52, 0.18);
+    --panel-border: rgba(43, 19, 49, 0.22);
+    --overlay: rgba(43, 19, 49, 0.06);
+    --overlay-strong: rgba(43, 19, 49, 0.13);
+    --fg: #180f22;
+    --fg-secondary: #3a2350;
+    --muted: #6b5a7a;
+    --accent: #ff9100;
+    --accent-strong: #0d9488;
+    --rose: #db2777;
+    --emerald: #0d9488;
+    --glow-soft: 0 0 0 2px rgba(255, 145, 0, 0.55), 0 2px 30px rgba(255, 145, 0, 0.38);
   }
   :root.light .lp-brand::before { opacity: 0.5; }
   :root.light .lp-brand::after { opacity: 0.5; }
@@ -130,11 +131,11 @@ const CSS = `
   }
   .lp-brand::before {
     width: 360px; height: 360px; top: -130px; left: -110px;
-    background: radial-gradient(circle, rgba(246, 169, 52, 0.20), transparent 70%);
+    background: radial-gradient(circle, rgba(246, 169, 52, 0.24), transparent 70%);
   }
   .lp-brand::after {
     width: 420px; height: 420px; bottom: -170px; right: -130px;
-    background: radial-gradient(circle, rgba(116, 110, 214, 0.18), transparent 70%);
+    background: radial-gradient(circle, rgba(147, 91, 255, 0.24), transparent 70%);
   }
 
   .lp-mark {
@@ -151,7 +152,7 @@ const CSS = `
   .lp-mark-dot {
     width: 9px; height: 9px; border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 12px rgba(246, 169, 52, 0.7);
+    box-shadow: 0 0 14px rgba(246, 169, 52, 0.8);
   }
 
   .lp-brand-body { position: relative; z-index: 2; }
@@ -253,7 +254,7 @@ const CSS = `
     transition: text-shadow 0.2s ease;
   }
   .lp-sub button:hover, .lp-linkbtn:hover {
-    text-shadow: 0 0 12px rgba(246, 169, 52, 0.5);
+    text-shadow: 0 0 14px rgba(246, 169, 52, 0.6);
   }
 
   .lp-tabs {
@@ -960,7 +961,7 @@ export default function LoginPage() {
 
         <div className="lp-mark">
           <span className="lp-mark-dot" />
-          StudyPlanApp
+          StudyMaxxing
         </div>
 
         <div className="lp-brand-body">

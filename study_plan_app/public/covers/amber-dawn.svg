@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a1030"/>
+      <stop offset="55%" stop-color="#7a3350"/>
+      <stop offset="100%" stop-color="#f6a934"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff3de"/>
+      <stop offset="60%" stop-color="#fde68a"/>
+      <stop offset="100%" stop-color="#f6a934" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="hill1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a1830"/>
+      <stop offset="100%" stop-color="#1a0e20"/>
+    </linearGradient>
+    <linearGradient id="hill2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1030"/>
+      <stop offset="100%" stop-color="#0e0818"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="400" fill="url(#sky)"/>
+  <circle cx="1180" cy="230" r="200" fill="url(#sun)"/>
+  <circle cx="1180" cy="230" r="80" fill="#fff3de"/>
+  <path d="M0,300 C200,240 380,320 620,270 C860,220 1000,300 1200,260 C1360,230 1500,280 1600,250 L1600,400 L0,400 Z" fill="url(#hill2)"/>
+  <path d="M0,340 C220,290 420,360 660,320 C900,280 1080,350 1300,310 C1420,290 1520,320 1600,300 L1600,400 L0,400 Z" fill="url(#hill1)"/>
+</svg>
