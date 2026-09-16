@@ -73,6 +73,7 @@ export async function getCoursesWithUploadCounts(userId: number) {
     `SELECT
        c.course_id,
        c.title,
+       c.semester,
        COUNT(u.upload_id) AS upload_count,
        MAX(u.uploaded_at) AS last_uploaded_at
      FROM course c
