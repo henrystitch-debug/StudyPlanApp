@@ -15,6 +15,8 @@ export async function POST (request: Request){
          if (!score) {
         return Response.json({ error: "Comparison failed" }, { status: 404 });
   }
+
+        return Response.json(score);
 }
     catch(err){
         console.error(err);

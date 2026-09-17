@@ -10,7 +10,7 @@ import {
   classifyScore,
   isPassed,
   labelFor,
-  scoreFreeText,
+  scoreFreeTextSemantic,
   setRetakeMarker,
 } from "./quizCore";
 import { CorrectBurst, RetakeMarkerDot, ScoreGauge, SessionCompletePanel } from "./QuizSharedUI";
@@ -95,7 +95,7 @@ function CombinationFlashcard({
           <div className="flashcard-face absolute inset-0 flex items-center justify-center rounded-lg border border-panel-border bg-[var(--sunken)] p-6 text-center">
             <p className="text-[17px] font-medium leading-snug text-foreground font-serif">{card.question}</p>
           </div>
-          <div className="flashcard-face flashcard-face-back absolute inset-0 flex items-center justify-center rounded-lg border border-accent/40 bg-[var(--overlay)] p-6 text-center">
+          <div className="flashcard-face flashcard-face-back absolute inset-0 flex items-center justify-center rounded-lg border border-panel-border bg-[var(--overlay)] p-6 text-center">
             <p className="text-[15px] leading-relaxed text-[var(--text-secondary)]">{card.answer}</p>
           </div>
         </div>
@@ -196,10 +196,10 @@ function CombinationMcq({
 
       {submitted && result ? (
         <div
-          className={`flex items-center justify-between rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
+          className={`relative overflow-visible flex items-center justify-between rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
         >
-          <span className={`relative overflow-visible text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>
-            {result === "correct" && <CorrectBurst />}
+          {result === "correct" && <CorrectBurst />}
+          <span className={`text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>
             {SCORE_STYLES[result].label}
           </span>
           <button
@@ -232,22 +232,26 @@ function CombinationFreeText({
 }) {
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [scoring, setScoring] = useState(false);
   const [percent, setPercent] = useState(0);
   const [result, setResult] = useState<ScoreCategory | null>(null);
 
   const handleSubmit = () => {
-    const score = scoreFreeText(answer, card.answer);
-    const category = classifyScore(score);
-    if (category === "correct") onCorrect();
-    setPercent(score);
-    setResult(category);
     setSubmitted(true);
+    setScoring(true);
+    scoreFreeTextSemantic(answer, card.answer).then((score) => {
+      const category = classifyScore(score);
+      if (category === "correct") onCorrect();
+      setPercent(score);
+      setResult(category);
+      setScoring(false);
+    });
   };
 
   return (
     <div
       onKeyDown={(e) => {
-        if (e.key === "Enter" && submitted) {
+        if (e.key === "Enter" && submitted && !scoring) {
           e.preventDefault();
           onDone(result as ScoreCategory, answer);
         }
@@ -261,31 +265,40 @@ function CombinationFreeText({
           <div className="w-full rounded-md border border-panel-border bg-[var(--sunken)] p-3 text-[13.5px] leading-relaxed text-[var(--text-secondary)]">
             {answer}
           </div>
-          <div className="flex items-start gap-5">
-            <div className="flex flex-shrink-0 flex-col items-center gap-2">
-              <ScoreGauge percent={percent} />
-              {result && (
-                <span
-                  className={`relative overflow-visible rounded-full border px-3 py-1 text-[12.5px] font-medium ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg} ${SCORE_STYLES[result].text}`}
-                >
-                  {result === "correct" && <CorrectBurst />}
-                  {SCORE_STYLES[result].label}
-                </span>
-              )}
-            </div>
-            <p className="flex-1 text-left text-[12.5px] leading-loose text-muted">
-              Ideal answer:
-              <br />
-              <br />
-              <span className="text-[var(--score-correct)]">{card.answer}</span>
+          {scoring ? (
+            <p className="flex items-center gap-2 text-[12.5px] text-muted">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted" />
+              Scoring your answer…
             </p>
-          </div>
-          <button
-            onClick={() => onDone(result as ScoreCategory, answer)}
-            className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
-          >
-            Next
-          </button>
+          ) : (
+            <>
+              <div className="flex items-start gap-5">
+                <div className="flex flex-shrink-0 flex-col items-center gap-2">
+                  <ScoreGauge percent={percent} />
+                  {result && (
+                    <span
+                      className={`relative overflow-visible rounded-full border px-3 py-1 text-[12.5px] font-medium ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg} ${SCORE_STYLES[result].text}`}
+                    >
+                      {result === "correct" && <CorrectBurst />}
+                      {SCORE_STYLES[result].label}
+                    </span>
+                  )}
+                </div>
+                <p className="flex-1 text-left text-[12.5px] leading-loose text-muted">
+                  Ideal answer:
+                  <br />
+                  <br />
+                  <span className="text-[var(--score-correct)]">{card.answer}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => onDone(result as ScoreCategory, answer)}
+                className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
+              >
+                Next
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -378,7 +391,7 @@ export function CombinationSession({
   const currentItem = items[index];
 
   return (
-    <div className="mx-auto max-w-xl rounded-2xl border border-panel-border bg-panel p-6">
+    <div className="mx-auto max-w-xl p-6">
       <div className="mb-6 flex items-center justify-between">
         <button onClick={onExit} className="flex items-center gap-1.5 text-[13px] text-muted hover:text-[var(--text-secondary)]">
           <ArrowLeft size={14} />
@@ -397,7 +410,7 @@ export function CombinationSession({
       <CombinationQuestion key={index} item={currentItem} onDone={handleQuestionDone} onCorrect={onCorrect} />
 
       <div className="mb-2 mt-5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--overlay)]">
-        <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-[var(--text-secondary)] transition-all" style={{ width: `${progress}%` }} />
       </div>
       <div className="flex items-center justify-between">
         <span className="text-[11.5px] text-muted">

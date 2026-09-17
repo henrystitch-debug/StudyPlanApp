@@ -32,6 +32,7 @@ import { QuizTakeButton, QuizExpandPanel } from "@/app/quiz_feature/QuizFocusAre
 import { QuizPlayer, type QuizSessionResult } from "@/app/quiz_feature/QuizPlayer";
 import { SessionCompletePanel } from "@/app/quiz_feature/QuizSharedUI";
 import { scoreForCategory } from "@/app/quiz_feature/quizCore";
+import { preloadQuizSounds, playQuizSound } from "@/app/quiz_feature/quizSounds";
 import { CoursesCover } from "@/components/courses/CoursesCover";
 import { AddCourseCard } from "@/components/courses/AddCourseCard";
 import { EditCourseForm } from "@/components/courses/EditCourseForm";
@@ -89,7 +90,9 @@ type CourseDocument = {
   isTopicIndexExpanded?: boolean;
   isDeleting?: boolean;
   deleteError?: string;
-  summaryReady?: boolean; // true once the user has explicitly generated/fetched a summary this session
+  summaryReady?: boolean; // true once a summary has been generated (this session or a past one)
+  quizReady?: boolean; // true once a quiz has been generated (this session or a past one)
+  finishedResult?: QuizSessionResult; // set right when this document's quiz session ends, shown in place of QuizPlayer until dismissed
 };
 
 type StudyPlanItem = {
@@ -273,6 +276,12 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
 
+  // Decode every quiz sound up front so the very first "Take Quiz" click
+  // has zero fetch/decode latency (see quizSounds.ts).
+  useEffect(() => {
+    preloadQuizSounds();
+  }, []);
+
   // Deep-link support: /courses?courseId=123 (used by the dashboard's
   // Courses widget) pre-selects that course once the list has loaded.
   useEffect(() => {
@@ -286,7 +295,6 @@ export default function CoursesPage() {
 
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [finishedQuiz, setFinishedQuiz] = useState<(QuizSessionResult & { sourceLabel: string }) | null>(null);
   const [flyingFlame, setFlyingFlame] = useState<{
     from: { x: number; y: number };
     to: { x: number; y: number };
@@ -421,6 +429,38 @@ export default function CoursesPage() {
               uploadId: row.upload_id,
             }));
           return additions.length > 0 ? [...prev, ...additions] : prev;
+        });
+
+        // "View summary"/"Take Quiz" are gated on summaryReady/quizReady so
+        // they don't appear for documents that were never summarized or
+        // quizzed — but those flags used to only ever get set by explicitly
+        // clicking "Summarize"/"Quiz" in the current session, so returning
+        // to a course (or reloading) forgot that a summary/quiz already
+        // existed and hid the button again until re-clicked. Re-check
+        // existence for every document this course has (cheap idempotent
+        // GETs) rather than trying to single out just the "new" ones —
+        // that would mean reading back out of the setDocuments call above,
+        // but React doesn't run that updater synchronously, so there's
+        // nothing reliable to read yet at this point in the function.
+        rows.forEach((row) => {
+          const uploadId = row.upload_id;
+          const docId = `upload-${uploadId}`;
+          fetchSavedSummary(uploadId)
+            .then((existing) => {
+              if (!existing) return;
+              setDocuments((prev) =>
+                prev.map((d) => (d.id === docId ? { ...d, summaryReady: true } : d))
+              );
+            })
+            .catch(() => {});
+          fetchSavedQuiz(uploadId)
+            .then((existing) => {
+              if (!existing) return;
+              setDocuments((prev) =>
+                prev.map((d) => (d.id === docId ? { ...d, quizReady: true } : d))
+              );
+            })
+            .catch(() => {});
         });
       } catch (err) {
         setPersistedUploadsError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -1063,6 +1103,7 @@ const handleGenerateQuiz = async (id: string) => {
                 isGeneratingQuiz: false,
                 isTakeQuizOpen: true,
                 quiz: existing,
+                quizReady: true,
               }
             : d
         )
@@ -1094,6 +1135,7 @@ const handleGenerateQuiz = async (id: string) => {
                 openText: data.openText ?? [],
                 quizIds: data.quizIds ?? { flashcards: null, mcq: null, freetext: null },
               },
+              quizReady: true,
             }
           : d
       )
@@ -1117,20 +1159,27 @@ const handleGenerateQuiz = async (id: string) => {
     if (!doc) return;
 
     const willOpen = !doc.isTakeQuizOpen;
+    if (willOpen) playQuizSound("takeQuiz", 0.6);
     setDocuments((prev) =>
       prev.map((d) => (d.id === id ? { ...d, isTakeQuizOpen: willOpen } : d))
     );
     if (willOpen) ensureQuizLoaded(id);
   };
 
-  // A quiz session just finished (see QuizPlayer's zoom-then-handoff): close
-  // this document's "Take Quiz" panel and present the score at the page
-  // level instead, so it can slam onto the now-undimmed page.
-  const handleQuizSessionComplete = (id: string, sourceLabel: string, result: QuizSessionResult) => {
+  // A quiz session just finished (see QuizPlayer's zoom-then-handoff): show
+  // the score exactly where the quiz itself was — inside this same
+  // document's panel, in place of QuizPlayer — rather than moving it
+  // somewhere else on the page. Moving it elsewhere (a separate block below
+  // the whole document list) meant this panel's own height changing at the
+  // same moment a new block appeared elsewhere caused the page's scrollable
+  // height to shift twice in one go, which the browser resolved by
+  // clamping/jumping the scroll position. Keeping it in place sidesteps
+  // that entirely — the accordion just resizes to fit the score panel,
+  // in the same spot the user was already looking at.
+  const handleQuizSessionComplete = (id: string, result: QuizSessionResult) => {
     setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, isTakeQuizOpen: false } : d))
+      prev.map((d) => (d.id === id ? { ...d, finishedResult: result } : d))
     );
-    setFinishedQuiz({ ...result, sourceLabel });
     persistAttemptsAndStreak(result.attempts);
   };
 
@@ -1762,7 +1811,7 @@ const handleGenerateQuiz = async (id: string) => {
                             {doc.isLoadingSummaryView ? "Loading…" : doc.isSummaryVisible ? "Hide summary" : "View summary"}
                           </button>
                         )}
-                      {doc.quiz && (
+                      {doc.quizReady && (
                         <QuizTakeButton
                           open={!!doc.isTakeQuizOpen}
                           onClick={() => toggleTakeQuiz(doc.id)}
@@ -1963,7 +2012,25 @@ const handleGenerateQuiz = async (id: string) => {
                     {doc.uploadId && (
                       <QuizExpandPanel open={!!doc.isTakeQuizOpen}>
                         <div className="border-t border-panel-border px-3 py-3">
-                          {doc.isLoadingQuizView ? (
+                          {doc.finishedResult ? (
+                            <div className="quiz-score-slam">
+                              <SessionCompletePanel
+                                sourceLabel={doc.name}
+                                passed={doc.finishedResult.passed}
+                                total={doc.finishedResult.total}
+                                answered={doc.finishedResult.answered}
+                                onExit={() =>
+                                  setDocuments((prev) =>
+                                    prev.map((d) =>
+                                      d.id === doc.id
+                                        ? { ...d, finishedResult: undefined, isTakeQuizOpen: false }
+                                        : d
+                                    )
+                                  )
+                                }
+                              />
+                            </div>
+                          ) : doc.isLoadingQuizView ? (
                             <p className="text-[12.5px] text-muted">Loading quiz…</p>
                           ) : doc.quizViewError ? (
                             <p className="text-[12.5px] text-rose">{doc.quizViewError}</p>
@@ -2007,9 +2074,7 @@ const handleGenerateQuiz = async (id: string) => {
                                   })),
                                   quizIds: doc.quiz.quizIds,
                                 }}
-                                onSessionComplete={(result) =>
-                                  handleQuizSessionComplete(doc.id, doc.name, result)
-                                }
+                                onSessionComplete={(result) => handleQuizSessionComplete(doc.id, result)}
                               />
                             </div>
                           ) : (
@@ -2025,43 +2090,9 @@ const handleGenerateQuiz = async (id: string) => {
               </div>
             )}
           </section>
-
-          {finishedQuiz && (
-            <FinishedQuizPanel
-              key={finishedQuiz.sourceLabel + finishedQuiz.answered.length}
-              finishedQuiz={finishedQuiz}
-              onExit={() => setFinishedQuiz(null)}
-            />
-          )}
         </>
       )}
     </>
-  );
-}
-
-// Reserves its own space at the bottom of the page for the finished-session
-// score, rather than floating a fixed overlay on top of the course content
-// — the panel "slams" into room the page has already made for it, centered
-// within that space, instead of covering whatever was underneath.
-function FinishedQuizPanel({
-  finishedQuiz,
-  onExit,
-}: {
-  finishedQuiz: QuizSessionResult & { sourceLabel: string };
-  onExit: () => void;
-}) {
-  return (
-    <div className="flex min-h-[70vh] items-center justify-center py-12">
-      <div className="quiz-score-slam w-full max-w-xl">
-        <SessionCompletePanel
-          sourceLabel={finishedQuiz.sourceLabel}
-          passed={finishedQuiz.passed}
-          total={finishedQuiz.total}
-          answered={finishedQuiz.answered}
-          onExit={onExit}
-        />
-      </div>
-    </div>
   );
 }
 

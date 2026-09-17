@@ -10,7 +10,7 @@ import {
   isPassed,
   labelFor,
   normalizeWords,
-  scoreFreeText,
+  scoreFreeTextSemantic,
   setRetakeMarker,
 } from "./quizCore";
 import { CorrectBurst, RetakeMarkerDot, ScoreGauge, SessionCompletePanel } from "./QuizSharedUI";
@@ -22,24 +22,18 @@ const CURSOR_WIDTH = 30; // px — keep in sync with .scan-cursor's width in glo
 // to the far right edge of the line (not hopping word by word, and not
 // stopping short just because the last line doesn't fill the width),
 // while the word highlights underneath still tick word-by-word as a
-// "scanned" cue. The score is known immediately (scoreFreeText is
-// deterministic): onScored fires right away for bookkeeping (recording
-// the result, retake marker), and onReveal fires in the same instant with
-// the glide's own duration, so the gauge's rise runs in lockstep with the
-// glide the whole way — same start, same finish, same accelerate/decelerate
-// shape (see ScoreGauge's transition-timing-function). onFinished fires
-// once the glide has actually completed.
+// "scanned" cue. This is purely cosmetic — a "your answer is being
+// compared" visual that plays out over a fixed duration while the real
+// (AI) score is fetched separately by the parent — so the word-hit
+// highlighting here is still local word-overlap; it's flavor, not the
+// actual grade. onFinished fires once the glide has actually completed.
 function FreeTextScan({
   answer,
   idealAnswer,
-  onScored,
-  onReveal,
   onFinished,
 }: {
   answer: string;
   idealAnswer: string;
-  onScored: (finalPercent: number) => void;
-  onReveal: (finalPercent: number, durationMs: number) => void;
   onFinished: () => void;
 }) {
   const rawWords = answer.split(/\s+/).filter(Boolean);
@@ -52,10 +46,7 @@ function FreeTextScan({
   const [hitIndices, setHitIndices] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    const finalPercent = scoreFreeText(answer, idealAnswer);
     if (rawWords.length === 0) {
-      onScored(finalPercent);
-      onReveal(finalPercent, 0);
       onFinished();
       return;
     }
@@ -64,12 +55,6 @@ function FreeTextScan({
     const hitFlags = rawWords.map((w) => normalizeWords(w).some((nw) => idealWordSet.has(nw)));
     const slideMs = SCAN_TOTAL_MS;
     const stepMs = slideMs / rawWords.length;
-
-    // The score is known now, and the gauge rises in lockstep with the
-    // glide itself (same duration, same easing — see ScoreGauge's
-    // transition-timing-function) rather than being revealed separately.
-    onScored(finalPercent);
-    onReveal(finalPercent, slideMs);
 
     const container = containerRef.current;
     const firstEl = wordRefs.current[0];
@@ -182,12 +167,13 @@ export function FreeTextSession({
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [aiScore, setAiScore] = useState<number | null>(null);
   const [percent, setPercent] = useState(0);
-  const [gaugeDurationMs, setGaugeDurationMs] = useState(900);
   const [results, setResults] = useState<(ScoreCategory | null)[]>(Array(cards.length).fill(null));
   const [answered, setAnswered] = useState<AnsweredQuestion[]>([]);
   const [showCorrectEffect, setShowCorrectEffect] = useState(false);
   const pendingCorrectRef = useRef(false);
+  const scoredIndexRef = useRef(-1);
   const total = cards.length;
   const isDone = index >= total;
   const progress = (Math.min(index, total) / total) * 100;
@@ -206,18 +192,24 @@ export function FreeTextSession({
     setSubmitted(true);
     setScanning(true);
     setPercent(0);
+    setAiScore(null);
+    scoreFreeTextSemantic(answer, cards[index].answer).then(setAiScore);
   };
 
-  // The score is known the instant scanning starts (scoreFreeText is
-  // deterministic): bookkeeping happens right away, and handleReveal (see
-  // FreeTextScan/onReveal) starts the gauge rising in that same instant,
-  // with the glide's own duration, so the needle's climb runs in lockstep
-  // with the glass window the whole way. Only the "correct" celebration
-  // waits for the gauge to actually settle (see handleGaugeSettled) —
-  // showing it before the gauge visibly reflects the score would read as
-  // premature.
-  const handleScored = (finalPercent: number) => {
-    const category = classifyScore(finalPercent);
+  // The scan animation (see FreeTextScan) is a fixed-duration cosmetic
+  // "comparing your answer" visual, decoupled from the actual grade — the
+  // real score comes back from the AI call kicked off in handleSubmit,
+  // which can resolve before or after the scan finishes. Once both are
+  // done, this reveals the gauge and records the result. Only the
+  // "correct" celebration waits for the gauge to actually settle (see
+  // handleGaugeSettled) — showing it before the gauge visibly reflects the
+  // score would read as premature.
+  useEffect(() => {
+    if (!submitted || scanning || aiScore === null) return;
+    if (scoredIndexRef.current === index) return;
+    scoredIndexRef.current = index;
+
+    const category = classifyScore(aiScore);
     pendingCorrectRef.current = category === "correct";
     setRetakeMarker("freetext", cards[index].question, category);
     setResults((prev) => prev.map((r, i) => (i === index ? category : r)));
@@ -231,12 +223,9 @@ export function FreeTextSession({
         quizItemId: cards[index].quizItemId,
       },
     ]);
-  };
-
-  const handleReveal = (finalPercent: number, durationMs: number) => {
-    setPercent(finalPercent);
-    setGaugeDurationMs(durationMs);
-  };
+    setPercent(aiScore);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted, scanning, aiScore, index]);
 
   const handleScanFinished = () => {
     setScanning(false);
@@ -255,6 +244,7 @@ export function FreeTextSession({
     setSubmitted(false);
     setScanning(false);
     setPercent(0);
+    setAiScore(null);
     setShowCorrectEffect(false);
     pendingCorrectRef.current = false;
     setIndex((i) => i + 1);
@@ -269,9 +259,9 @@ export function FreeTextSession({
 
   return (
     <div
-      className="mx-auto max-w-xl rounded-2xl border border-panel-border bg-panel p-6"
+      className="mx-auto max-w-xl p-6"
       onKeyDown={(e) => {
-        if (e.key === "Enter" && submitted && !scanning) {
+        if (e.key === "Enter" && submitted && !scanning && result) {
           e.preventDefault();
           handleNext();
         }
@@ -296,52 +286,46 @@ export function FreeTextSession({
       {submitted ? (
         <div className="mb-4 flex flex-col gap-3">
           {scanning ? (
-            <FreeTextScan
-              answer={answer}
-              idealAnswer={card.answer}
-              onScored={handleScored}
-              onReveal={handleReveal}
-              onFinished={handleScanFinished}
-            />
+            <FreeTextScan answer={answer} idealAnswer={card.answer} onFinished={handleScanFinished} />
           ) : (
             <div className="w-full rounded-md border border-panel-border bg-[var(--sunken)] p-3 text-[14px] leading-relaxed text-[var(--text-secondary)]">
               {answer}
             </div>
           )}
 
-          <div className="flex items-start gap-5">
-            <div className="flex flex-shrink-0 flex-col items-center gap-2">
-              <ScoreGauge
-                percent={percent}
-                durationMs={gaugeDurationMs}
-                easing="cubic-bezier(0.42, 0, 0.58, 1)"
-                onSettled={handleGaugeSettled}
-              />
-              {!scanning && result && (
-                <span
-                  className={`relative overflow-visible rounded-full border px-3 py-1 text-[12.5px] font-medium ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg} ${SCORE_STYLES[result].text}`}
-                >
-                  {showCorrectEffect && <CorrectBurst />}
-                  {SCORE_STYLES[result].label}
-                </span>
-              )}
-            </div>
-            {!scanning && (
-              <p className="flex-1 text-left text-[13px] leading-loose text-muted">
-                Ideal answer:
-                <br />
-                <br />
-                <span className="text-[var(--score-correct)]">{card.answer}</span>
-              </p>
-            )}
-          </div>
-          {!scanning && (
-            <button
-              onClick={handleNext}
-              className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
-            >
-              {index === total - 1 ? "Finish" : "Next"}
-            </button>
+          {!scanning && !result && (
+            <p className="flex items-center gap-2 text-[13px] text-muted">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted" />
+              Scoring your answer…
+            </p>
+          )}
+
+          {!scanning && result && (
+            <>
+              <div className="flex items-start gap-5">
+                <div className="flex flex-shrink-0 flex-col items-center gap-2">
+                  <ScoreGauge percent={percent} onSettled={handleGaugeSettled} />
+                  <span
+                    className={`relative overflow-visible rounded-full border px-3 py-1 text-[12.5px] font-medium ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg} ${SCORE_STYLES[result].text}`}
+                  >
+                    {showCorrectEffect && <CorrectBurst />}
+                    {SCORE_STYLES[result].label}
+                  </span>
+                </div>
+                <p className="flex-1 text-left text-[13px] leading-loose text-muted">
+                  Ideal answer:
+                  <br />
+                  <br />
+                  <span className="text-[var(--score-correct)]">{card.answer}</span>
+                </p>
+              </div>
+              <button
+                onClick={handleNext}
+                className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
+              >
+                {index === total - 1 ? "Finish" : "Next"}
+              </button>
+            </>
           )}
         </div>
       ) : (
@@ -370,7 +354,7 @@ export function FreeTextSession({
       )}
 
       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--overlay)]">
-        <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-[var(--text-secondary)] transition-all" style={{ width: `${progress}%` }} />
       </div>
       <div className="flex items-center justify-between">
         <span className="text-[11.5px] text-muted">

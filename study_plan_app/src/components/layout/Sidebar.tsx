@@ -102,12 +102,26 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   // this once its flying-flame animation lands here, so the sidebar's own
   // flame can visibly "catch" it — a brief pulse, not a persistent state.
   const [refueling, setRefueling] = useState(false);
+  const streakBadgeRef = useRef<HTMLSpanElement>(null);
+  // The shockwave rings burst well past the icon's own 28px box, which the
+  // nav's own overflow-y-auto (a scroll container forces overflow-x to
+  // clip too, per the CSS spec) was cutting off. Rendering them in a
+  // position:fixed overlay — using the icon's live viewport rect, the same
+  // way the flying-flame animation already locates this icon — escapes
+  // that clipping entirely instead of shrinking the rings to fit.
+  const [ringOrigin, setRingOrigin] = useState<{ left: number; top: number; size: number } | null>(null);
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
     const handleRefuel = () => {
+      const rect = streakBadgeRef.current?.getBoundingClientRect();
+      if (rect) setRingOrigin({ left: rect.left, top: rect.top, size: rect.width });
       setRefueling(true);
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => setRefueling(false), 800);
+      // Matches (with headroom) the longest of the catch animations below —
+      // streak-flame-pulse runs 1.4s. Cutting the class off earlier than an
+      // animation's own duration snaps it back to its resting state
+      // mid-flight instead of letting it settle, which read as "cut off".
+      timeoutId = setTimeout(() => setRefueling(false), 1500);
     };
     window.addEventListener("streak:refuel", handleRefuel);
     return () => {
@@ -165,20 +179,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 }`}
               >
                 <span
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                    item.label === "Streak" ? "relative" : ""
-                  }`}
+                  ref={item.label === "Streak" ? streakBadgeRef : undefined}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors"
                   style={{
                     backgroundColor: `${item.color}${isActive ? "26" : "1a"}`,
                     color: item.color,
                     opacity: isDisabled ? 0.5 : 1,
                   }}
                 >
-                  {item.label === "Streak" &&
-                    refueling &&
-                    [0, 1].map((i) => (
-                      <span key={i} className="streak-catch-ring" style={{ animationDelay: `${i * 150}ms` }} />
-                    ))}
                   <Icon
                     size={16}
                     {...(item.label === "Streak" ? { "data-streak-nav-icon": "" } : {})}
@@ -190,6 +198,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             );
           })}
         </nav>
+
+        {refueling && ringOrigin && (
+          <div
+            className="pointer-events-none fixed z-[60]"
+            style={{ left: ringOrigin.left, top: ringOrigin.top, width: ringOrigin.size, height: ringOrigin.size }}
+          >
+            <span className="streak-catch-bloom" />
+            {[0, 1].map((i) => (
+              <span key={i} className="streak-catch-ring" style={{ animationDelay: `${i * 150}ms` }} />
+            ))}
+          </div>
+        )}
 
         {overflowing && (
           <button

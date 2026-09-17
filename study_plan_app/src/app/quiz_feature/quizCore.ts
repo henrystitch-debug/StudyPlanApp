@@ -1,6 +1,6 @@
-import { Ear, ListChecks, PenLine, SquareStack, Layers, type LucideIcon } from "lucide-react";
+import { ListChecks, PenLine, SquareStack, Layers, type LucideIcon } from "lucide-react";
 
-export type StudyMode = "flashcards" | "mcq" | "freetext" | "auditive" | "combination";
+export type StudyMode = "flashcards" | "mcq" | "freetext" | "combination";
 export type ModeDef = { id: StudyMode; label: string; description: string; icon: LucideIcon };
 export type Step = "select-mode" | "session";
 
@@ -8,7 +8,6 @@ export const MODES: ModeDef[] = [
   { id: "flashcards", label: "Flashcards", description: "Flip through Q&A cards", icon: SquareStack },
   { id: "mcq", label: "Multiple Choice", description: "Pick the right answer", icon: ListChecks },
   { id: "freetext", label: "Free Text", description: "Write your own answer", icon: PenLine },
-  { id: "auditive", label: "Auditive", description: "Listen and speak", icon: Ear },
   { id: "combination", label: "Combination", description: "All modes combined", icon: Layers },
 ];
 
@@ -29,7 +28,7 @@ export type AnsweredQuestion = {
   question: string;
   userAnswer: string;
   category: ScoreCategory;
-  mode: Exclude<StudyMode, "auditive" | "combination">;
+  mode: Exclude<StudyMode, "combination">;
   quizItemId: number;
 };
 
@@ -81,7 +80,7 @@ export function isPassed(r: ScoreCategory | null): boolean {
 // actually touched. This is the unit the caller persists as a single
 // quiz_attempt row plus its item_attempts.
 export type ModeAttempt = {
-  mode: Exclude<StudyMode, "auditive" | "combination">;
+  mode: Exclude<StudyMode, "combination">;
   quizId: number | null;
   passed: number;
   total: number;
@@ -152,7 +151,19 @@ const MOTIVATION_TIERS: { icon: string; lines: string[] }[] = [
   },
 ];
 
+// A true zero score gets its own dedicated, randomly-picked set — distinct
+// from the general "missed a lot" tier below, which still applies to a low
+// but nonzero score on a larger quiz.
+const ZERO_SCORE_LINES = [
+  "Everyone starts somewhere — this is just your starting line.",
+  "Zero isn't a verdict, it's just today. Take another look and try again.",
+  "No points yet, but you showed up — that's step one.",
+];
+
 export function pickMotivationalMessage(passed: number, total: number): { icon: string; text: string } {
+  if (passed === 0 && total > 0) {
+    return { icon: "🌱", text: ZERO_SCORE_LINES[Math.floor(Math.random() * ZERO_SCORE_LINES.length)] };
+  }
   const missed = total - passed;
   const tier = missed === 0 ? 0 : missed <= 2 ? 1 : missed <= 5 ? 2 : 3;
   const { icon, lines } = MOTIVATION_TIERS[tier];
@@ -179,8 +190,10 @@ export function normalizeWords(s: string): string[] {
     .filter((w) => !STOPWORDS.has(w));
 }
 
-// Word-overlap match against the ideal answer, used to score free-text
-// answers until real semantic comparison is wired up to /api/compareOpenText.
+// Word-overlap match against the ideal answer. Kept as the offline fallback
+// for scoreFreeTextSemantic below (and for the free-text scan animation's
+// cosmetic word-hit highlighting, which doesn't need to be semantically
+// accurate — it's just a visual cue that something was compared).
 export function scoreFreeText(userAnswer: string, idealAnswer: string): number {
   const idealWords = normalizeWords(idealAnswer);
   const userWords = new Set(normalizeWords(userAnswer));
@@ -188,6 +201,34 @@ export function scoreFreeText(userAnswer: string, idealAnswer: string): number {
 
   const matched = idealWords.filter((w) => userWords.has(w)).length;
   return Math.min(100, (matched / idealWords.length) * 100);
+}
+
+// Real semantic comparison via /api/compareOpenText (Gemini embeddings +
+// cosine similarity) — this is what actually judges meaning rather than
+// exact word choice, so a correctly-rephrased answer scores well even if it
+// shares almost no words with the ideal answer. Falls back to the local
+// word-overlap heuristic if the request fails (offline, network hiccup, or
+// the AI quota is exhausted — this project runs on a free-tier Gemini key
+// that has hit its daily limit before), so a free-text session never gets
+// stuck waiting on a comparison that will never arrive.
+export async function scoreFreeTextSemantic(userAnswer: string, idealAnswer: string): Promise<number> {
+  if (!userAnswer.trim()) return 0;
+  try {
+    const res = await fetch("/api/compareOpenText", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userAnswer, modelAnswer: idealAnswer }),
+    });
+    if (!res.ok) throw new Error(`compareOpenText failed: ${res.status}`);
+    const data = (await res.json()) as { score?: number };
+    if (typeof data.score !== "number" || Number.isNaN(data.score)) {
+      throw new Error("compareOpenText returned no usable score");
+    }
+    return Math.max(0, Math.min(100, data.score));
+  } catch (err) {
+    console.error("Semantic free-text scoring failed, falling back to word overlap:", err);
+    return scoreFreeText(userAnswer, idealAnswer);
+  }
 }
 
 // --- Retake markers -------------------------------------------------

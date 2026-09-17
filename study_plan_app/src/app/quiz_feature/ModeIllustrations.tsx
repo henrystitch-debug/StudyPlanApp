@@ -1,11 +1,9 @@
-import { Ear } from "lucide-react";
-
 // Keep in sync with the .pictogram-pen-1 / .pictogram-pen-2 offset-path
 // values in globals.css.
 const LINE_1_PATH = "M2 13 Q 8 10, 14 13 T 26 12";
 const LINE_2_PATH = "M2 20 Q 7 23, 12 20 T 22 21";
 
-type IllustrationMode = "flashcards" | "mcq" | "freetext" | "auditive" | "combination";
+type IllustrationMode = "flashcards" | "mcq" | "freetext" | "combination";
 
 function FlashcardsIllustration() {
   return (
@@ -92,41 +90,6 @@ function FreeTextIllustration() {
   );
 }
 
-function AuditiveIllustration() {
-  return (
-    <div className="flex h-8 w-16 items-center gap-1.5 text-accent">
-      <Ear size={18} className="shrink-0" />
-      {/* normal, standard-shaped sound-wave brackets (concave side facing
-          the ear, same as any volume/wifi icon) — the "receiving" read
-          comes from real motion: each one slides in from empty space
-          toward the ear, closest arriving last */}
-      <svg viewBox="0 0 32 24" className="h-6 w-10" fill="none">
-        <path
-          d="M8 16 Q 13 12, 8 8"
-          className="pictogram-wave-1 stroke-current"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          style={{ "--wave-rest-opacity": 0.75 } as React.CSSProperties}
-        />
-        <path
-          d="M15 19 Q 22 12, 15 5"
-          className="pictogram-wave-2 stroke-current"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          style={{ "--wave-rest-opacity": 0.5 } as React.CSSProperties}
-        />
-        <path
-          d="M22 22 Q 31 12, 22 2"
-          className="pictogram-wave-3 stroke-current"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          style={{ "--wave-rest-opacity": 0.3 } as React.CSSProperties}
-        />
-      </svg>
-    </div>
-  );
-}
-
 const COMBINATION_SHAPES = [
   { x: "-14px", y: "-8px", cls: "bg-accent" },
   { x: "14px", y: "-8px", cls: "bg-current opacity-70" },
@@ -162,8 +125,6 @@ export function ModeIllustration({ mode }: { mode: IllustrationMode }) {
       return <MultipleChoiceIllustration />;
     case "freetext":
       return <FreeTextIllustration />;
-    case "auditive":
-      return <AuditiveIllustration />;
     case "combination":
       return <CombinationIllustration />;
   }

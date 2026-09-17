@@ -87,7 +87,7 @@ export function McqSession({
 
   return (
     <div
-      className="mx-auto max-w-xl rounded-2xl border border-panel-border bg-panel p-6"
+      className="mx-auto max-w-xl p-6"
       onKeyDown={(e) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
@@ -144,10 +144,10 @@ export function McqSession({
 
       {submitted && result ? (
         <div
-          className={`mb-4 flex items-center justify-between rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
+          className={`relative overflow-visible mb-4 flex items-center justify-between rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
         >
-          <span className={`relative overflow-visible text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>
-            {result === "correct" && <CorrectBurst />}
+          {result === "correct" && <CorrectBurst />}
+          <span className={`text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>
             {SCORE_STYLES[result].label}
           </span>
           <button
@@ -167,7 +167,7 @@ export function McqSession({
       )}
 
       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--overlay)]">
-        <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-[var(--text-secondary)] transition-all" style={{ width: `${progress}%` }} />
       </div>
       <div className="flex items-center justify-between">
         <span className="text-[11.5px] text-muted">

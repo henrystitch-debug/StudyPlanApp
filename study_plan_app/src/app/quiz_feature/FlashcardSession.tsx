@@ -84,7 +84,7 @@ export function FlashcardSession({
 
   return (
     <div
-      className="mx-auto max-w-xl rounded-2xl border border-panel-border bg-panel p-6"
+      className="mx-auto max-w-xl p-6"
       onKeyDown={(e) => {
         if (e.key === "Enter" && !flipped) {
           e.preventDefault();
@@ -116,7 +116,7 @@ export function FlashcardSession({
           <div className="flashcard-face absolute inset-0 flex items-center justify-center rounded-lg border border-panel-border bg-[var(--sunken)] p-6 text-center">
             <p className="text-[18px] font-medium leading-snug text-foreground font-serif">{card.question}</p>
           </div>
-          <div className="flashcard-face flashcard-face-back absolute inset-0 flex items-center justify-center rounded-lg border border-accent/40 bg-[var(--overlay)] p-6 text-center">
+          <div className="flashcard-face flashcard-face-back absolute inset-0 flex items-center justify-center rounded-lg border border-panel-border bg-[var(--overlay)] p-6 text-center">
             <p className="text-[16px] leading-relaxed text-[var(--text-secondary)]">{card.answer}</p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export function FlashcardSession({
       )}
 
       <div className="mb-2 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--overlay)]">
-        <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-[var(--text-secondary)] transition-all" style={{ width: `${progress}%` }} />
       </div>
       <div className="flex items-center justify-between">
         <span className="text-[11.5px] text-muted">
