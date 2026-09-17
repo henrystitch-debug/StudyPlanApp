@@ -3,7 +3,6 @@
 import { Flame, GripVertical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useBubblyFonts } from "@/hooks/useBubblyFonts";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { DashboardCover } from "./DashboardCover";
@@ -18,6 +17,7 @@ function getGreeting(hour: number): string {
 }
 
 const ORDER_KEY = "study-plan-widget-order";
+const ACTIVE_KEY = "study-plan-active-widgets";
 const REGISTRY_ORDER = WIDGET_REGISTRY.map((w) => w.id);
 
 // Merge the saved order with the registry so a widget added later (not in
@@ -33,14 +33,30 @@ function readWidgetOrder(): string[] {
   }
 }
 
+// Same idea as readWidgetOrder: fall back to the defaults when nothing (or
+// nothing valid) has been saved yet.
+function readActiveWidgetIds(): string[] {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(ACTIVE_KEY) ?? "null") as
+      | string[]
+      | null;
+    if (!saved) return DEFAULT_WIDGET_IDS;
+    return saved.filter((id) => REGISTRY_ORDER.includes(id));
+  } catch {
+    return DEFAULT_WIDGET_IDS;
+  }
+}
+
 export function DashboardPage() {
   const { userId } = useAuth();
+  // Server-safe default selection, then load the viewer's own saved
+  // selection once mounted (same pattern as the widget order below).
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_WIDGET_IDS);
+  const [activeLoaded, setActiveLoaded] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const [streak, setStreak] = useState<number | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  useBubblyFonts();
 
   useEffect(() => {
     if (!userId) return;
@@ -75,6 +91,20 @@ export function DashboardPage() {
     fetchUser();
     fetchMessage();
   }, [userId]);
+
+  useEffect(() => {
+    setActiveWidgetIds(readActiveWidgetIds());
+    setActiveLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!activeLoaded) return;
+    try {
+      window.localStorage.setItem(ACTIVE_KEY, JSON.stringify(activeWidgetIds));
+    } catch {
+      /* ignore */
+    }
+  }, [activeWidgetIds, activeLoaded]);
 
   // Server-safe default order, then load the viewer's own saved
   // arrangement once mounted (same pattern as the theme/cover settings).
@@ -130,11 +160,6 @@ export function DashboardPage() {
 
   return (
     <>
-      <style jsx global>{`
-        .font-sans { font-family: "Quicksand", ui-sans-serif, system-ui, sans-serif; }
-        .font-serif { font-family: "Baloo 2", ui-sans-serif, system-ui, sans-serif; }
-      `}</style>
-
       <DashboardCover />
 
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -150,7 +175,7 @@ export function DashboardPage() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-[32px] font-semibold tracking-tight text-foreground font-serif sm:text-[38px]">
+        <h1 className="text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
           {message ?? (
             <>
               {greeting}, <span className="text-[var(--accent-strong)]">{displayName}</span>.

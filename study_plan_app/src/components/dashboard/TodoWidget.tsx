@@ -122,7 +122,7 @@ export function TodoWidget() {
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/15 text-sky-500">
             <ListChecks size={14} />
           </span>
-          <h3 className="text-[19px] font-semibold text-foreground font-serif">To-do</h3>
+          <h3 className="text-[19px] font-medium text-foreground font-serif">To-do</h3>
         </div>
         <span className="text-[12px] text-muted">
           {doneCount}/{todos.length} done
