@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="obSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdf3df"/>
+      <stop offset="55%" stop-color="#fbd9a5"/>
+      <stop offset="100%" stop-color="#f3b56c"/>
+    </linearGradient>
+    <radialGradient id="obGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fffdf3" stop-opacity="0.95"/>
+      <stop offset="60%" stop-color="#ffe9ba" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#ffe9ba" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="obPageL" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#fffdf7"/>
+      <stop offset="100%" stop-color="#eee0c4"/>
+    </linearGradient>
+    <linearGradient id="obPageR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fffdf7"/>
+      <stop offset="100%" stop-color="#eee0c4"/>
+    </linearGradient>
+    <linearGradient id="obShadow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6b4a2a" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#6b4a2a" stop-opacity="0"/>
+    </linearGradient>
+    <g id="obStar">
+      <path d="M0,-10 L2.6,-2.6 L10,0 L2.6,2.6 L0,10 L-2.6,2.6 L-10,0 L-2.6,-2.6 Z" fill="#fff6da"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="400" fill="url(#obSky)"/>
+
+  <circle cx="1160" cy="120" r="260" fill="url(#obGlow)"/>
+
+  <g opacity="0.85">
+    <use href="#obStar" transform="translate(300,90) scale(0.9)">
+      <animate attributeName="opacity" values="0.9;0.25;0.9" dur="3.2s" repeatCount="indefinite"/>
+    </use>
+    <use href="#obStar" transform="translate(420,180) scale(0.6)">
+      <animate attributeName="opacity" values="0.3;0.9;0.3" dur="4s" repeatCount="indefinite"/>
+    </use>
+    <use href="#obStar" transform="translate(1300,260) scale(0.7)">
+      <animate attributeName="opacity" values="0.9;0.3;0.9" dur="3.6s" repeatCount="indefinite"/>
+    </use>
+    <use href="#obStar" transform="translate(1420,130) scale(0.5)">
+      <animate attributeName="opacity" values="0.3;0.85;0.3" dur="4.4s" repeatCount="indefinite"/>
+    </use>
+  </g>
+
+  <!-- desk shadow -->
+  <ellipse cx="800" cy="332" rx="430" ry="26" fill="url(#obShadow)"/>
+
+  <!-- open book, gently breathing -->
+  <g transform="translate(800,260)">
+    <animateTransform attributeName="transform" type="translate" additive="sum" values="800,260;800,254;800,260" dur="6s" repeatCount="indefinite"/>
+
+    <!-- pages stack shadow -->
+    <path d="M-350,10 Q0,60 350,10 L350,26 Q0,76 -350,26 Z" fill="#d8c39a"/>
+
+    <!-- left page -->
+    <path d="M-6,-90 C-140,-108 -260,-96 -350,-58 L-350,26 C-260,-8 -140,-20 -6,-4 Z" fill="url(#obPageL)" stroke="#e2cfa8" stroke-width="2"/>
+    <!-- right page -->
+    <path d="M6,-90 C140,-108 260,-96 350,-58 L350,26 C260,-8 140,-20 6,-4 Z" fill="url(#obPageR)" stroke="#e2cfa8" stroke-width="2"/>
+
+    <!-- spine -->
+    <path d="M-6,-90 C-2,-70 -2,-24 -6,-4 L6,-4 C2,-24 2,-70 6,-90 Z" fill="#c9a05a"/>
+
+    <!-- text hint lines -->
+    <g stroke="#c9b083" stroke-width="3" stroke-linecap="round" opacity="0.7">
+      <line x1="-300" y1="-52" x2="-140" y2="-62"/>
+      <line x1="-300" y1="-34" x2="-120" y2="-46"/>
+      <line x1="-300" y1="-16" x2="-100" y2="-30"/>
+      <line x1="140" y1="-62" x2="300" y2="-52"/>
+      <line x1="120" y1="-46" x2="300" y2="-34"/>
+      <line x1="100" y1="-30" x2="300" y2="-16"/>
+    </g>
+
+    <!-- bookmark ribbon -->
+    <path d="M-16,-92 L18,-92 L18,10 L1,-6 L-16,10 Z" fill="#d3654f"/>
+  </g>
+
+  <path d="M0,344 C260,318 480,360 720,336 C960,312 1180,352 1600,330 L1600,400 L0,400 Z" fill="#c98a4a" opacity="0.55"/>
+</svg>

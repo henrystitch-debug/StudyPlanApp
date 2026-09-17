@@ -1,25 +1,25 @@
-import { updateEvent } from "@/lib/db/calendar";
+import { createEvent } from "@/lib/db/calendar";
 
 const ALLOWED_TYPES = ["lecture", "exam", "study_session", "other"];
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-export async function PUT(request: Request) {
+export async function POST(request: Request) {
     try {
-        const { eventId, eventDate, startTime, endTime, description, eventType, courseId } =
+        const { userId, eventDate, startTime, endTime, eventType, description, courseId } =
             await request.json();
 
-        const id = Number(eventId);
+        const uid = Number(userId);
 
         if (
-            !id ||
-            Number.isNaN(id) ||
+            !uid ||
+            Number.isNaN(uid) ||
             !eventDate ||
             !startTime ||
             !endTime ||
             !ALLOWED_TYPES.includes(eventType)
         ) {
             return Response.json(
-                { error: "eventId, eventDate, startTime, endTime and a valid eventType are required" },
+                { error: "userId, eventDate, startTime, endTime and a valid eventType are required" },
                 { status: 400 }
             );
         }
@@ -31,23 +31,19 @@ export async function PUT(request: Request) {
             return Response.json({ error: "endTime must be after startTime" }, { status: 400 });
         }
 
-        const updatedEvent = await updateEvent(
-            id,
+        const created = await createEvent(
+            uid,
             eventDate,
             startTime,
             endTime,
-            typeof description === "string" && description.trim() ? description.trim() : null,
             eventType,
+            typeof description === "string" && description.trim() ? description.trim() : null,
             courseId ? Number(courseId) : null
         );
 
-        if (!updatedEvent) {
-            return Response.json({ error: "Event not found" }, { status: 404 });
-        }
-
-        return Response.json({ event: updatedEvent });
+        return Response.json({ event: created }, { status: 201 });
     } catch (err) {
         console.error(err);
-        return Response.json({ error: "Error while updating event" }, { status: 500 });
+        return Response.json({ error: "Error while creating event" }, { status: 500 });
     }
 }

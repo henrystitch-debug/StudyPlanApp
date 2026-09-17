@@ -7,6 +7,7 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   href: string;
+  color: string;
 };
 
 export type TodoItem = {

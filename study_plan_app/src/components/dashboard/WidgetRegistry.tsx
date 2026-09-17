@@ -3,8 +3,11 @@ import { FocusCard } from "./FocusCard";
 import { CoursesWidget } from "./CoursesWidget";
 import { TodoWidget } from "./TodoWidget";
 import { StudyPlanWidget } from "./StudyPlanWidget";
+import { ReviewWidget } from "./ReviewWidget";
+import { WeekWidget } from "./WeekWidget";
+import { WeatherWidget } from "./WeatherWidget";
+import { TimeWidget } from "./TimeWidget";
 import { AnalyticsWidget } from "./AnalyticsWidget";
-import { WeekWidget } from "./ WeekWidget";
 
 export const WIDGET_REGISTRY: WidgetDef[] = [
   {
@@ -17,7 +20,7 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
   {
     id: "courses",
     label: "Your Courses",
-    description: "Grid of the courses you're studying.",
+    description: "Your courses with semester, documents, and study progress.",
     span: "full",
     render: () => <CoursesWidget />,
   },
@@ -27,6 +30,13 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "A quick checklist for today.",
     span: "grid",
     render: () => <TodoWidget />,
+  },
+  {
+    id: "review",
+    label: "Due for Review",
+    description: "Flashcards that need another pass.",
+    span: "grid",
+    render: () => <ReviewWidget />,
   },
   {
     id: "analytics",
@@ -48,5 +58,19 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     description: "Your courses, open to check off tasks.",
     span: "grid",
     render: () => <StudyPlanWidget />,
+  },
+  {
+    id: "weather",
+    label: "Weather",
+    description: "Current conditions for your location.",
+    span: "grid",
+    render: () => <WeatherWidget />,
+  },
+  {
+    id: "time",
+    label: "Local Time",
+    description: "A live clock for your location's timezone.",
+    span: "grid",
+    render: () => <TimeWidget />,
   },
 ];

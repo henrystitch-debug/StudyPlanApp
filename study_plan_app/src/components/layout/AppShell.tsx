@@ -52,7 +52,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Menu size={20} />
             </button>
           </div>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+          {/* The dashboard ("/") renders its own ThemeToggle inline next to
+              the streak badge and Customize button, so it isn't duplicated
+              stacked on top of those here. */}
+          {pathname !== "/" && <ThemeToggle theme={theme} onToggle={toggleTheme} />}
         </header>
 
         <main className="flex-1 px-4 pb-10 pt-2 sm:px-8">{children}</main>

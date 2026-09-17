@@ -51,12 +51,20 @@ export async function getEventsInRange(userId : number, startDate: string, endDa
 // ===============================================
 // CREATE event
 //================================================
-export async function createEvent(eventDate: Date, startTime: string, endTime: string, description: string, type: string, aiGenerated: boolean) {
+export async function createEvent(
+  userId: number,
+  eventDate: string,
+  startTime: string,
+  endTime: string,
+  eventType: string,
+  description: string | null,
+  courseId: number | null
+) {
   const result = await pool.query(
-    `INSERT INTO event (id, event_date, start_time, end_time, description, type, ai_generated)
-     VALUES (DEFAULT, $1, $2, $3, $4, $5, $6)
+    `INSERT INTO event (user_id, event_date, start_time, end_time, event_type, description, course_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [eventDate, startTime, endTime, description, type, aiGenerated]
+    [userId, eventDate, startTime, endTime, eventType, description, courseId]
   );
   return result.rows[0];
 }
@@ -64,18 +72,26 @@ export async function createEvent(eventDate: Date, startTime: string, endTime: s
 // ===============================================
 // UPDATE event
 //================================================
-export async function updateEvent(eventId: number, eventDate: Date, startTime: string, endTime: string, description: string, type: string){
-
-     const result = await pool.query(
+export async function updateEvent(
+  eventId: number,
+  eventDate: string,
+  startTime: string,
+  endTime: string,
+  description: string | null,
+  eventType: string,
+  courseId: number | null
+) {
+  const result = await pool.query(
     `UPDATE event
      SET event_date = $1,
-     start_time = $2,
-     end_time = $3, 
-     description = $4, 
-     type = $5
-     WHERE event_id = $6
+         start_time = $2,
+         end_time = $3,
+         description = $4,
+         event_type = $5,
+         course_id = $6
+     WHERE event_id = $7
      RETURNING *`,
-    [eventDate, startTime, endTime, description, type, eventId]
+    [eventDate, startTime, endTime, description, eventType, courseId, eventId]
   );
   return result.rows[0];
 }

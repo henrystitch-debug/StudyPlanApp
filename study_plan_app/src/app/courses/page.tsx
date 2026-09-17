@@ -25,13 +25,14 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type Course } from "@/types/course";
 import { gradientForCourse } from "@/components/dashboard/constants";
 import { QuizTakeButton, QuizExpandPanel } from "@/app/quiz_feature/QuizFocusArea";
 import { QuizPlayer, type QuizSessionResult } from "@/app/quiz_feature/QuizPlayer";
 import { SessionCompletePanel } from "@/app/quiz_feature/QuizSharedUI";
 import { scoreForCategory } from "@/app/quiz_feature/quizCore";
+import { CoursesCover } from "@/components/courses/CoursesCover";
 import { AddCourseCard } from "@/components/courses/AddCourseCard";
 import { EditCourseForm } from "@/components/courses/EditCourseForm";
 
@@ -266,10 +267,20 @@ function downloadQuizAsPdf(quiz: Quiz, sourceFileName: string) {
 
 export default function CoursesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { userId, isAuthed } = useAuth();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+
+  // Deep-link support: /courses?courseId=123 (used by the dashboard's
+  // Courses widget) pre-selects that course once the list has loaded.
+  useEffect(() => {
+    const courseIdParam = searchParams.get("courseId");
+    if (!courseIdParam) return;
+    const id = Number(courseIdParam);
+    if (!Number.isNaN(id)) setSelectedCourseId(id);
+  }, [searchParams]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
   const [coursesError, setCoursesError] = useState<string | null>(null);
 
@@ -1317,6 +1328,10 @@ const handleGenerateQuiz = async (id: string) => {
         </button>
       </div>
 
+      {selectedCourse && (
+        <CoursesCover key={selectedCourse.courseId} courseId={selectedCourse.courseId} />
+      )}
+
       {isLoadingCourses ? (
         <div className="mb-8 flex min-h-[132px] items-center justify-center rounded-xl border border-panel-border bg-panel text-[12.5px] text-muted">
           Loading courses…
@@ -1409,13 +1424,13 @@ const handleGenerateQuiz = async (id: string) => {
         </div>
       ) : (
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {courses.map((course, i) => (
+          {courses.map((course) => (
             <button
               key={course.courseId}
               onClick={() => setSelectedCourseId(course.courseId)}
               className="overflow-hidden rounded-xl border border-panel-border bg-panel text-left transition-colors hover:border-accent"
             >
-              <div className={`h-20 w-full bg-gradient-to-br ${gradientForCourse(i)}`} /> 
+              <div className={`h-20 w-full bg-gradient-to-br ${gradientForCourse(course.courseId)}`} />
               <div className="p-3">
                 <p className="text-[13.5px] capitalize text-foreground">
                   {course.title}
