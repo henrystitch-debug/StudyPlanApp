@@ -80,7 +80,7 @@ export function CoursesWidget() {
     <div className="hover-glow flex h-full flex-col rounded-2xl border border-panel-border bg-panel p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="text-[20px] font-semibold text-foreground font-serif">Your Courses</h3>
+          <h3 className="text-[20px] font-medium text-foreground font-serif">Your Courses</h3>
           {!loading && !error && courses.length > 0 && (
             <p className="mt-0.5 text-[12px] text-muted">
               {courses.length} course{courses.length === 1 ? "" : "s"}

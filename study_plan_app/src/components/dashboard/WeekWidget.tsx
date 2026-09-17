@@ -46,7 +46,7 @@ export function WeekWidget() {
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
           <CalendarCheck size={14} />
         </span>
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">Activity</h3>
+        <h3 className="text-[19px] font-medium text-foreground font-serif">Activity</h3>
       </div>
 
       {loading ? (

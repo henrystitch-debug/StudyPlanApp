@@ -309,6 +309,8 @@ export default function CoursesPage() {
   const [isCourseSwitcherOpen, setIsCourseSwitcherOpen] = useState(false);
   const courseSwitcherRef = useRef<HTMLDivElement>(null);
   const [isEditingCourse, setIsEditingCourse] = useState(false);
+  const [isDeletingCourse, setIsDeletingCourse] = useState(false);
+  const [deleteCourseError, setDeleteCourseError] = useState<string | null>(null);
 
   // Schließt das "Switch courses"-Dropdown bei Klick außerhalb.
   useEffect(() => {
@@ -680,6 +682,34 @@ export default function CoursesPage() {
       setDeleteStudyPlanError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
       setIsDeletingStudyPlan(false);
+    }
+  };
+
+  // Löscht den Kurs per DELETE /api/course/courseDelete (Uploads, Studyplan und
+  // Kalender-Events des Kurses hängen per ON DELETE CASCADE dran).
+  const handleDeleteCourse = async () => {
+    if (!selectedCourseId) return;
+    if (!window.confirm("Delete this course? This also removes its documents, study plan, and calendar events."))
+      return;
+
+    setIsDeletingCourse(true);
+    setDeleteCourseError(null);
+    try {
+      const response = await fetch(`/api/course/courseDelete?courseId=${selectedCourseId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Course could not be deleted");
+      }
+
+      setCourses((prev) => prev.filter((c) => c.courseId !== selectedCourseId));
+      setSelectedCourseId(null);
+    } catch (err) {
+      setDeleteCourseError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setIsDeletingCourse(false);
     }
   };
 
@@ -1261,7 +1291,8 @@ const handleGenerateQuiz = async (id: string) => {
           />
         </div>
       ) : selectedCourse ? (
-        <div className="mb-8 flex items-center justify-between gap-3">
+        <div className="mb-8">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-muted">Current course</p>
             <p className="text-[17px] font-medium capitalize text-foreground font-serif">
@@ -1281,6 +1312,15 @@ const handleGenerateQuiz = async (id: string) => {
             >
               <Pencil size={14} />
               Edit
+            </button>
+
+            <button
+              onClick={handleDeleteCourse}
+              disabled={isDeletingCourse}
+              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-3 py-1.5 text-[13px] text-rose transition-colors hover:bg-rose/10 disabled:opacity-50"
+            >
+              <Trash2 size={14} />
+              {isDeletingCourse ? "Deleting…" : "Delete"}
             </button>
 
             <div className="relative" ref={courseSwitcherRef}>
@@ -1329,6 +1369,10 @@ const handleGenerateQuiz = async (id: string) => {
             )}
             </div>
           </div>
+        </div>
+        {deleteCourseError && (
+          <p className="mt-2 text-[12.5px] text-rose">{deleteCourseError}</p>
+        )}
         </div>
       ) : (
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
