@@ -44,7 +44,7 @@ export function AnalyticsWidget() {
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 text-violet-500">
           <Flame size={14} />
         </span>
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">Analytics</h3>
+        <h3 className="text-[19px] font-medium text-foreground font-serif">Analytics</h3>
       </div>
 
       {loading ? (

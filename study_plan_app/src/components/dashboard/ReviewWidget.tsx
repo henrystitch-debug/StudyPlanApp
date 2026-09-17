@@ -9,7 +9,7 @@ export function ReviewWidget() {
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose/15 text-rose">
           <RotateCcw size={14} />
         </span>
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">Due for Review</h3>
+        <h3 className="text-[19px] font-medium text-foreground font-serif">Due for Review</h3>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-panel-border bg-[var(--sunken)] px-4 py-8 text-center">
         <Layers size={20} className="text-muted" />

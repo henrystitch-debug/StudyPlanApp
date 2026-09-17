@@ -53,7 +53,7 @@ export function StudyPlanWidget() {
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/15 text-teal-500">
           <ClipboardList size={14} />
         </span>
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">Study Plan</h3>
+        <h3 className="text-[19px] font-medium text-foreground font-serif">Study Plan</h3>
       </div>
 
       <div className="flex flex-1 flex-col gap-2">

@@ -41,7 +41,7 @@ export function TimeWidget() {
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
           <Clock size={14} />
         </span>
-        <h3 className="text-[19px] font-semibold text-foreground font-serif">Local Time</h3>
+        <h3 className="text-[19px] font-medium text-foreground font-serif">Local Time</h3>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-center">
