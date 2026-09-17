@@ -98,6 +98,24 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     router.replace("/login");
   };
 
+  // A finished quiz that bumps the streak (see courses/page.tsx) dispatches
+  // this once its flying-flame animation lands here, so the sidebar's own
+  // flame can visibly "catch" it — a brief pulse, not a persistent state.
+  const [refueling, setRefueling] = useState(false);
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const handleRefuel = () => {
+      setRefueling(true);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setRefueling(false), 800);
+    };
+    window.addEventListener("streak:refuel", handleRefuel);
+    return () => {
+      window.removeEventListener("streak:refuel", handleRefuel);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
   return (
     <>
       {open && (
@@ -147,14 +165,25 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 }`}
               >
                 <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors"
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    item.label === "Streak" ? "relative" : ""
+                  }`}
                   style={{
                     backgroundColor: `${item.color}${isActive ? "26" : "1a"}`,
                     color: item.color,
                     opacity: isDisabled ? 0.5 : 1,
                   }}
                 >
-                  <Icon size={16} />
+                  {item.label === "Streak" &&
+                    refueling &&
+                    [0, 1].map((i) => (
+                      <span key={i} className="streak-catch-ring" style={{ animationDelay: `${i * 150}ms` }} />
+                    ))}
+                  <Icon
+                    size={16}
+                    {...(item.label === "Streak" ? { "data-streak-nav-icon": "" } : {})}
+                    className={item.label === "Streak" && refueling ? "streak-flame-pulse" : undefined}
+                  />
                 </span>
                 {item.label}
               </Link>

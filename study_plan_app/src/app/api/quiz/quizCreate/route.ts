@@ -1,6 +1,6 @@
 
 import { createQuiz } from "@/lib/ai/quiz";
-import { saveQuizItems } from "@/lib/db/quizItem";
+import { getQuizForUpload, saveQuizItems } from "@/lib/db/quizItem";
 import { getUploadById } from "@/lib/db/upload";
 
 export async function POST (request: Request){
@@ -43,11 +43,18 @@ export async function POST (request: Request){
             { status: 500})
           }
 
-          return Response.json({
-            flashcards: responseAI.quiz.flashcards,
-            mcq: responseAI.quiz.mcq,
-            openText: responseAI.quiz.openText
-            });
+          // Re-read from the DB rather than echoing the AI response directly,
+          // so the caller gets the same quizItemId/quizIds-bearing shape as
+          // GET quizGetForUpload (needed to record attempts against the
+          // right quiz once the session finishes).
+          const saved = await getQuizForUpload(uploadId);
+          if (!saved) {
+            return Response.json(
+            { error: "Failed saving quizzes" },
+            { status: 500})
+          }
+
+          return Response.json(saved);
         }
 
     catch(err){

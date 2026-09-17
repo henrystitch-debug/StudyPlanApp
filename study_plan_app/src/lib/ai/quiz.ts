@@ -1,8 +1,15 @@
 import { promptQuiz } from "@/utils/prompts";
-import { quizSchema, QuizResult } from "@/types/quizItem";
+import { aiReplyQuiz, quizSchema, QuizResult } from "@/types/quizItem";
 import { withRetry } from "@/utils/retryApiCall";
 import { GEMINI_MODEL } from "./config";
 import { ai } from "./client";
+
+// The model occasionally returns a structurally-valid response where some
+// string fields (MCQ options, in practice) come back null instead of real
+// text — schema validation alone doesn't guard against this since
+// responseSchema only shapes the JSON, it doesn't enforce it. One retry
+// with a fresh generation is far cheaper than shipping unusable quiz data.
+const MAX_GENERATION_ATTEMPTS = 2;
 
 export async function createQuiz(file: File): Promise<QuizResult>{
   const isTextFile =
@@ -23,28 +30,31 @@ export async function createQuiz(file: File): Promise<QuizResult>{
     ];
   }
 
-  const response = await withRetry(() =>
-   ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents,
-    config: {
-    responseMimeType: "application/json",
-    responseSchema: quizSchema
+  let lastError = "No quiz received.";
+
+  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
+    const response = await withRetry(() =>
+     ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents,
+      config: {
+      responseMimeType: "application/json",
+      responseSchema: quizSchema
+      }
+    }));
+
+    if(response.text == undefined || !response.text){
+      lastError = "No quiz received.";
+      continue;
     }
-  }));
 
-  if(response.text == undefined || !response.text){
-     return { success: false, error: "No quiz received."
-   }
+    const parsed = aiReplyQuiz.safeParse(JSON.parse(response.text));
+    if (parsed.success) {
+      return { success: true, quiz: parsed.data };
+    }
+
+    lastError = "The generated quiz was malformed — please try again.";
   }
 
-  const quizResponse = JSON.parse(response.text)
-
-  const fullQuiz = {
-      flashcards: quizResponse.flashcards, 
-      mcq : quizResponse.mcq,
-      openText : quizResponse.openText
-  }
-
-  return {success: true, quiz: fullQuiz};
+  return { success: false, error: lastError };
 }

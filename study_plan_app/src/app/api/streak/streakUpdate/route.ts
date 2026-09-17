@@ -1,22 +1,21 @@
-import { updateUserStreak } from "@/lib/db/user";
+import { bumpStreakIfEligible } from "@/lib/db/user";
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ userId: string, streak: string}> }
-) {
-  const { userId: userIdParam, streak: streakParam } = await params;
-  const userId = Number(userIdParam);
-  const streak = Number(streakParam);
+// Bumps the caller's streak if today's quiz attempt is their first of the
+// day (see bumpStreakIfEligible) — the server decides the new value from
+// quiz_attempt history, the caller only identifies who they are.
+export async function PUT(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const userId = Number(searchParams.get("userId"));
 
-  if (!userId || Number.isNaN(userId) || !streak) {
-    return Response.json({ error: "userid and streak is required" }, { status: 400 });
+  if (!userId || Number.isNaN(userId)) {
+    return Response.json({ error: "userId is required" }, { status: 400 });
   }
 
-  const updatedUser = await updateUserStreak(userId, streak);
-
-  if (!updatedUser) {
+  try {
+    const result = await bumpStreakIfEligible(userId);
+    return Response.json(result);
+  } catch (err) {
+    console.error(err);
     return Response.json({ error: "User not found" }, { status: 404 });
   }
-
-  return Response.json({ user: updatedUser });
 }

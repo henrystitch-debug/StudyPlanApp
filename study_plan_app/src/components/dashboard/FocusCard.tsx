@@ -87,7 +87,7 @@ export function FocusCard() {
         <div className="flex gap-2">
           <button
             onClick={() => setRunning((r) => !r)}
-            className="rounded-full bg-accent px-4 py-1.5 text-[13px] font-medium text-accent-foreground transition-colors hover:brightness-110"
+            className="rounded-full border border-panel-border bg-[var(--overlay)] px-4 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
           >
             {running ? "Pause" : "Start Focus"}
           </button>

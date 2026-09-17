@@ -46,6 +46,37 @@ export async function getQuizzesOverviewForCourse(courseId: number) {
   return result.rows ?? null;
 }
 
+// ===============================================
+// GET quiz overview across every course a user owns (Quizzes page)
+//================================================
+// One row per real quiz (upload + type), across all of the user's
+// courses — attempt_count/average_score/best_score are 0/null for a quiz
+// that's been generated but never taken (LEFT JOIN keeps it visible).
+export async function getQuizOverviewForUser(userId: number) {
+  const result = await pool.query(
+    `SELECT
+       q.quiz_id,
+       q.quiz_type,
+       u.upload_id,
+       u.file_name AS topic_title,
+       c.course_id,
+       c.title AS course_title,
+       COUNT(qa.quiz_attempt_id) AS attempt_count,
+       AVG(qa.score) AS average_score,
+       MAX(qa.score) AS best_score,
+       MAX(qa.attempt_date) AS last_attempted
+     FROM quiz q
+     JOIN upload u ON q.upload_id = u.upload_id
+     JOIN course c ON u.course_id = c.course_id
+     LEFT JOIN quiz_attempt qa ON qa.quiz_id = q.quiz_id AND qa.user_id = $1
+     WHERE c.user_id = $1
+     GROUP BY q.quiz_id, q.quiz_type, u.upload_id, u.file_name, c.course_id, c.title
+     ORDER BY c.title, u.file_name, q.quiz_type`,
+    [userId]
+  );
+  return result.rows;
+}
+
 type QuizType = 'flashcards' | 'mcq' | 'freetext';
 
 async function insertQuiz(client: any, uploadId: number, quizType: QuizType): Promise<number> {
@@ -156,27 +187,35 @@ export async function getQuizForUpload(uploadId: number) {
   if (quizzes.rows.length === 0) return null;
 
   const quiz: {
-    flashcards: { question: string; answer: string }[];
-    mcq: { question: string; options: string[]; correctIndex: number }[];
-    openText: { question: string; modelAnswer: string }[];
-  } = { flashcards: [], mcq: [], openText: [] };
+    flashcards: { quizItemId: number; question: string; answer: string }[];
+    mcq: { quizItemId: number; question: string; options: string[]; correctIndex: number }[];
+    openText: { quizItemId: number; question: string; modelAnswer: string }[];
+    // quiz_id per type, so a finished session can be recorded against the
+    // right quiz for createQuizAttempt — null for a type that was never
+    // generated for this upload.
+    quizIds: { flashcards: number | null; mcq: number | null; freetext: number | null };
+  } = { flashcards: [], mcq: [], openText: [], quizIds: { flashcards: null, mcq: null, freetext: null } };
 
   for (const row of quizzes.rows) {
     const items = await pool.query(
-      'SELECT question, answer FROM quiz_item WHERE quiz_id = $1',
+      'SELECT quiz_item_id, question, answer FROM quiz_item WHERE quiz_id = $1',
       [row.quiz_id]
     );
 
     if (row.quiz_type === 'flashcards') {
-      quiz.flashcards = items.rows.map((i) => ({ question: i.question, answer: i.answer }));
+      quiz.flashcards = items.rows.map((i) => ({ quizItemId: i.quiz_item_id, question: i.question, answer: i.answer }));
+      quiz.quizIds.flashcards = row.quiz_id;
     } else if (row.quiz_type === 'mcq') {
       quiz.mcq = items.rows.map((i) => ({
+        quizItemId: i.quiz_item_id,
         question: i.question,
         options: i.answer?.options ?? [],
         correctIndex: i.answer?.correct ?? 0,
       }));
+      quiz.quizIds.mcq = row.quiz_id;
     } else if (row.quiz_type === 'freetext') {
-      quiz.openText = items.rows.map((i) => ({ question: i.question, modelAnswer: i.answer }));
+      quiz.openText = items.rows.map((i) => ({ quizItemId: i.quiz_item_id, question: i.question, modelAnswer: i.answer }));
+      quiz.quizIds.freetext = row.quiz_id;
     }
   }
 

@@ -21,12 +21,17 @@ import {
   Clock,
   Eye,
   EyeOff,
+  Flame,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type Course } from "@/types/course";
 import { gradientForCourse } from "@/components/dashboard/constants";
+import { QuizTakeButton, QuizExpandPanel } from "@/app/quiz_feature/QuizFocusArea";
+import { QuizPlayer, type QuizSessionResult } from "@/app/quiz_feature/QuizPlayer";
+import { SessionCompletePanel } from "@/app/quiz_feature/QuizSharedUI";
+import { scoreForCategory } from "@/app/quiz_feature/quizCore";
 import { CoursesCover } from "@/components/courses/CoursesCover";
 import { AddCourseCard } from "@/components/courses/AddCourseCard";
 import { EditCourseForm } from "@/components/courses/EditCourseForm";
@@ -44,14 +49,16 @@ type DocumentSummary = {
   topicIndex: TopicIndexItem[];
 };
 
-type QuizFlashcard = { question: string; answer: string };
-type QuizMcq = { question: string; options: string[]; correctIndex: number };
-type QuizOpenText = { question: string; modelAnswer: string };
+type QuizFlashcard = { quizItemId: number; question: string; answer: string };
+type QuizMcq = { quizItemId: number; question: string; options: string[]; correctIndex: number };
+type QuizOpenText = { quizItemId: number; question: string; modelAnswer: string };
+type QuizIds = { flashcards: number | null; mcq: number | null; freetext: number | null };
 
 type Quiz = {
   flashcards: QuizFlashcard[];
   mcq: QuizMcq[];
   openText: QuizOpenText[];
+  quizIds: QuizIds;
 };
 
 type CourseDocument = {
@@ -73,10 +80,9 @@ type CourseDocument = {
   quiz?: Quiz;
   isGeneratingQuiz?: boolean;
   quizError?: string;
-  isQuizVisible?: boolean; // steuert, ob der Quiz-Block eingeblendet ist ("Quiz"-Anzeige-Button)
+  isTakeQuizOpen?: boolean; // steuert, ob die "Take Quiz"-Fläche ausgeklappt ist
   isLoadingQuizView?: boolean;
   quizViewError?: string;
-  isQuizContentExpanded?: boolean; // steuert, ob Flashcards/MCQ/Open Text ausgeklappt sind
   isDownloading?: boolean;
   downloadError?: string;
   isSummaryTextExpanded?: boolean;
@@ -84,7 +90,6 @@ type CourseDocument = {
   isDeleting?: boolean;
   deleteError?: string;
   summaryReady?: boolean; // true once the user has explicitly generated/fetched a summary this session
-  quizReady?: boolean;  
 };
 
 type StudyPlanItem = {
@@ -281,6 +286,11 @@ export default function CoursesPage() {
 
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [finishedQuiz, setFinishedQuiz] = useState<(QuizSessionResult & { sourceLabel: string }) | null>(null);
+  const [flyingFlame, setFlyingFlame] = useState<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null>(null);
   const [isLoadingPersistedUploads, setIsLoadingPersistedUploads] = useState(false);
   const [persistedUploadsError, setPersistedUploadsError] = useState<string | null>(null);
 
@@ -856,14 +866,6 @@ export default function CoursesPage() {
     );
   };
 
-  const toggleQuizContentExpanded = (id: string) => {
-    setDocuments((prev) =>
-      prev.map((d) =>
-        d.id === id ? { ...d, isQuizContentExpanded: !d.isQuizContentExpanded } : d
-      )
-    );
-  };
-
   const handleCopy = async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -1089,9 +1091,7 @@ const handleGenerateQuiz = async (id: string) => {
             ? {
                 ...d,
                 isGeneratingQuiz: false,
-                isQuizVisible: true,
-                isQuizContentExpanded: true,
-                quizReady: true,
+                isTakeQuizOpen: true,
                 quiz: existing,
               }
             : d
@@ -1117,10 +1117,13 @@ const handleGenerateQuiz = async (id: string) => {
           ? {
               ...d,
               isGeneratingQuiz: false,
-              isQuizVisible: true,
-              isQuizContentExpanded: true,
-              quizReady: true,
-              quiz: { flashcards: data.flashcards ?? [], mcq: data.mcq ?? [], openText: data.openText ?? [] },
+              isTakeQuizOpen: true,
+              quiz: {
+                flashcards: data.flashcards ?? [],
+                mcq: data.mcq ?? [],
+                openText: data.openText ?? [],
+                quizIds: data.quizIds ?? { flashcards: null, mcq: null, freetext: null },
+              },
             }
           : d
       )
@@ -1136,27 +1139,92 @@ const handleGenerateQuiz = async (id: string) => {
   }
 };
 
-  // Zeigt ein bereits gespeichertes Quiz zu diesem Dokument an (GET
-  // /api/quiz/quizGetForUpload) - ohne es neu zu generieren.
-  const handleViewQuiz = async (id: string) => {
+  // Klappt die "Take Quiz"-Fläche auf/zu und lädt beim ersten Öffnen ein
+  // bereits gespeichertes Quiz zu diesem Dokument nach (GET
+  // /api/quiz/quizGetForUpload), ohne es neu zu generieren.
+  const toggleTakeQuiz = (id: string) => {
     const doc = documents.find((d) => d.id === id);
-    if (!doc || !doc.uploadId) return;
+    if (!doc) return;
 
-    if (doc.isQuizVisible) {
-      setDocuments((prev) =>
-        prev.map((d) => (d.id === id ? { ...d, isQuizVisible: false } : d))
-      );
-      return;
-    }
+    const willOpen = !doc.isTakeQuizOpen;
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, isTakeQuizOpen: willOpen } : d))
+    );
+    if (willOpen) ensureQuizLoaded(id);
+  };
 
-    if (doc.quiz) {
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === id ? { ...d, isQuizVisible: true, isQuizContentExpanded: true } : d
+  // A quiz session just finished (see QuizPlayer's zoom-then-handoff): close
+  // this document's "Take Quiz" panel and present the score at the page
+  // level instead, so it can slam onto the now-undimmed page.
+  const handleQuizSessionComplete = (id: string, sourceLabel: string, result: QuizSessionResult) => {
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, isTakeQuizOpen: false } : d))
+    );
+    setFinishedQuiz({ ...result, sourceLabel });
+    persistAttemptsAndStreak(result.attempts);
+  };
+
+  // Saves one quiz_attempt (+ its item_attempts) per mode actually touched
+  // in the session, then asks the server whether today's streak should
+  // bump (bumpStreakIfEligible only moves it on the day's first attempt).
+  // Only plays the flying-flame animation when the streak really did move.
+  const persistAttemptsAndStreak = async (attempts: QuizSessionResult["attempts"]) => {
+    if (!userId) return;
+    const recordable = attempts.filter((a) => a.quizId !== null && a.total > 0);
+    if (recordable.length === 0) return;
+
+    try {
+      await Promise.all(
+        recordable.map((a) =>
+          fetch("/api/attempt/attemptCreate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId,
+              quizId: a.quizId,
+              score: Math.round((a.passed / a.total) * 100),
+              items: a.answered.map((q) => ({
+                quizItemId: q.quizItemId,
+                score: scoreForCategory(q.category),
+                level: q.category,
+                userAnswer: q.userAnswer,
+              })),
+            }),
+          })
         )
       );
-      return;
+
+      const streakRes = await fetch(`/api/streak/streakUpdate?userId=${userId}`, { method: "PUT" });
+      const streakData = await streakRes.json();
+      if (streakRes.ok && streakData.updated) {
+        triggerStreakFireAnimation();
+      }
+    } catch (err) {
+      console.error("Failed to save quiz attempt/streak", err);
     }
+  };
+
+  // fromEl defaults to the just-appeared score panel (the real completion
+  // flow); the demo button has no such panel, so it passes its own
+  // position instead.
+  const triggerStreakFireAnimation = (fromEl?: Element | null) => {
+    // Give the score panel a frame to actually paint before measuring it.
+    requestAnimationFrame(() => {
+      const origin = fromEl ?? document.querySelector(".quiz-score-slam");
+      const toEl = document.querySelector("[data-streak-nav-icon]");
+      if (!origin || !toEl) return;
+      const fromRect = origin.getBoundingClientRect();
+      const toRect = toEl.getBoundingClientRect();
+      setFlyingFlame({
+        from: { x: fromRect.left + fromRect.width / 2, y: fromRect.top + 24 },
+        to: { x: toRect.left + toRect.width / 2, y: toRect.top + toRect.height / 2 },
+      });
+    });
+  };
+
+  const ensureQuizLoaded = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc || !doc.uploadId || doc.quiz || doc.isLoadingQuizView) return;
 
     setDocuments((prev) =>
       prev.map((d) =>
@@ -1176,15 +1244,7 @@ const handleGenerateQuiz = async (id: string) => {
 
       setDocuments((prev) =>
         prev.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                isLoadingQuizView: false,
-                isQuizVisible: true,
-                isQuizContentExpanded: true,
-                quiz: data.quiz,
-              }
-            : d
+          d.id === id ? { ...d, isLoadingQuizView: false, quiz: data.quiz } : d
         )
       );
     } catch (err) {
@@ -1262,9 +1322,41 @@ const handleGenerateQuiz = async (id: string) => {
 
   return (
     <>
-      <h1 className="mb-6 text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
-        Your Courses
-      </h1>
+      <div
+        className={`fixed inset-0 z-[55] bg-black/60 transition-opacity duration-300 ${
+          documents.some((d) => d.isTakeQuizOpen)
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+        onClick={() =>
+          setDocuments((prev) => prev.map((d) => ({ ...d, isTakeQuizOpen: false })))
+        }
+      />
+
+      {flyingFlame && (
+        <FlyingFlame
+          from={flyingFlame.from}
+          to={flyingFlame.to}
+          onDone={() => {
+            setFlyingFlame(null);
+            window.dispatchEvent(new Event("streak:refuel"));
+          }}
+        />
+      )}
+
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
+          Your Courses
+        </h1>
+        <button
+          onClick={(e) => triggerStreakFireAnimation(e.currentTarget)}
+          className="flex items-center gap-1.5 rounded-md border border-dashed border-panel-border px-2.5 py-1 text-[11.5px] text-muted hover:text-[var(--text-secondary)]"
+          title="Demo only — plays the flying-flame animation without actually bumping the streak"
+        >
+          <Flame size={13} />
+          Demo: streak increase
+        </button>
+      </div>
 
       {selectedCourse && (
         <CoursesCover key={selectedCourse.courseId} courseId={selectedCourse.courseId} />
@@ -1688,7 +1780,9 @@ const handleGenerateQuiz = async (id: string) => {
                 {visibleDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="rounded-lg border border-panel-border bg-panel"
+                    className={`rounded-lg border border-panel-border bg-panel ${
+                      doc.isTakeQuizOpen ? "relative z-[60]" : ""
+                    }`}
                   >
                     <div className="group flex items-center gap-2.5 px-3 py-2.5">
                       <FileIconLucide size={15} className="shrink-0 text-accent" />
@@ -1712,26 +1806,13 @@ const handleGenerateQuiz = async (id: string) => {
                             {doc.isLoadingSummaryView ? "Loading…" : doc.isSummaryVisible ? "Hide summary" : "View summary"}
                           </button>
                         )}
-                    {doc.quizReady && (
-                      <button
-                        onClick={() => handleViewQuiz(doc.id)}
-                        disabled={doc.isLoadingQuizView || doc.isUploading}
-                        className="flex shrink-0 items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)] disabled:opacity-50"
-                      >
-                        {doc.isLoadingQuizView ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : doc.isQuizVisible ? (
-                          <EyeOff size={13} />
-                        ) : (
-                          <Eye size={13} />
-                        )}
-                        {doc.isLoadingQuizView
-                          ? "Loading…"
-                          : doc.isQuizVisible
-                          ? "Hide quiz"
-                          : "View quiz"}
-                      </button>
-                    )}
+                      {doc.quiz && (
+                        <QuizTakeButton
+                          open={!!doc.isTakeQuizOpen}
+                          onClick={() => toggleTakeQuiz(doc.id)}
+                          disabled={doc.isUploading || !doc.uploadId}
+                        />
+                      )}
 
                       <span className="flex-1" />
 
@@ -1923,134 +2004,152 @@ const handleGenerateQuiz = async (id: string) => {
                       </div>
                     )}
 
-                    {doc.quiz && doc.isQuizVisible && (
-                      <div className="border-t border-panel-border px-3 py-3">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-[13px] font-medium text-foreground">
-                            Quiz ({doc.quiz.flashcards.length} flashcards &middot;{" "}
-                            {doc.quiz.mcq.length} multiple choice &middot; {doc.quiz.openText.length} open text)
-                          </p>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <button
-                              onClick={() => handleCopy(doc.id, quizToText(doc.quiz!))}
-                              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
-                            >
-                              {copiedId === doc.id ? (
-                                <Check size={13} />
-                              ) : (
-                                <Copy size={13} />
-                              )}
-                              {copiedId === doc.id ? "Copied" : "Copy"}
-                            </button>
-                            <button
-                              onClick={() => downloadQuizAsPdf(doc.quiz!, doc.name)}
-                              className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
-                            >
-                              <FileDown size={13} />
-                              PDF
-                            </button>
-                          </div>
-                        </div>
+                    {doc.uploadId && (
+                      <QuizExpandPanel open={!!doc.isTakeQuizOpen}>
+                        <div className="border-t border-panel-border px-3 py-3">
+                          {doc.isLoadingQuizView ? (
+                            <p className="text-[12.5px] text-muted">Loading quiz…</p>
+                          ) : doc.quizViewError ? (
+                            <p className="text-[12.5px] text-rose">{doc.quizViewError}</p>
+                          ) : doc.quiz ? (
+                            <div className="flex flex-col gap-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleCopy(doc.id, quizToText(doc.quiz!))}
+                                  className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                                >
+                                  {copiedId === doc.id ? (
+                                    <Check size={13} />
+                                  ) : (
+                                    <Copy size={13} />
+                                  )}
+                                  {copiedId === doc.id ? "Copied" : "Copy"}
+                                </button>
+                                <button
+                                  onClick={() => downloadQuizAsPdf(doc.quiz!, doc.name)}
+                                  className="flex items-center gap-1.5 rounded-md border border-panel-border bg-[var(--overlay)] px-2.5 py-1 text-[11.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--overlay-strong)]"
+                                >
+                                  <FileDown size={13} />
+                                  PDF
+                                </button>
+                              </div>
 
-                        <button
-                          onClick={() => toggleQuizContentExpanded(doc.id)}
-                          className="mb-1.5 flex items-center gap-1 text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-foreground"
-                        >
-                          {doc.isQuizContentExpanded ? (
-                            <>
-                              <ChevronUp size={13} /> Minimize
-                            </>
+                              <QuizPlayer
+                                sourceLabel={doc.name}
+                                quiz={{
+                                  flashcards: doc.quiz.flashcards,
+                                  mcq: doc.quiz.mcq.map((q) => ({
+                                    quizItemId: q.quizItemId,
+                                    question: q.question,
+                                    options: q.options,
+                                    correctIndices: [q.correctIndex],
+                                  })),
+                                  openText: doc.quiz.openText.map((q) => ({
+                                    quizItemId: q.quizItemId,
+                                    question: q.question,
+                                    answer: q.modelAnswer,
+                                  })),
+                                  quizIds: doc.quiz.quizIds,
+                                }}
+                                onSessionComplete={(result) =>
+                                  handleQuizSessionComplete(doc.id, doc.name, result)
+                                }
+                              />
+                            </div>
                           ) : (
-                            <>
-                              <ChevronDown size={13} /> Expand
-                            </>
-                          )}
-                        </button>
-
-                        {doc.isQuizContentExpanded && (
-                        <div className="flex flex-col gap-3">
-                          {doc.quiz.flashcards.length > 0 && (
-                            <div>
-                              <p className="mb-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                                Flashcards
-                              </p>
-                              <ul className="flex flex-col gap-1.5">
-                                {doc.quiz.flashcards.map((card, i) => (
-                                  <li
-                                    key={i}
-                                    className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
-                                  >
-                                    <span className="font-medium text-foreground">{card.question}</span>
-                                    {" — "}
-                                    {card.answer}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {doc.quiz.mcq.length > 0 && (
-                            <div>
-                              <p className="mb-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                                Multiple Choice
-                              </p>
-                              <ul className="flex flex-col gap-1.5">
-                                {doc.quiz.mcq.map((q, i) => (
-                                  <li
-                                    key={i}
-                                    className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
-                                  >
-                                    <p className="mb-1 font-medium text-foreground">{q.question}</p>
-                                    <ul className="flex flex-col gap-0.5 pl-3">
-                                      {q.options.map((option, optionIndex) => (
-                                        <li
-                                          key={optionIndex}
-                                          className={
-                                            optionIndex === q.correctIndex
-                                              ? "text-accent"
-                                              : undefined
-                                          }
-                                        >
-                                          {option}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {doc.quiz.openText.length > 0 && (
-                            <div>
-                              <p className="mb-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                                Open Text
-                              </p>
-                              <ul className="flex flex-col gap-1.5">
-                                {doc.quiz.openText.map((q, i) => (
-                                  <li
-                                    key={i}
-                                    className="rounded-md border border-panel-border bg-[var(--sunken)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-secondary)]"
-                                  >
-                                    <span className="font-medium text-foreground">{q.question}</span>
-                                    {" — "}
-                                    {q.modelAnswer}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                            <p className="text-[12.5px] text-muted">
+                              No quiz saved for this document yet — click &quot;Quiz&quot; above to generate one.
+                            </p>
                           )}
                         </div>
-                        )}
-                      </div>
+                      </QuizExpandPanel>
                     )}
                   </div>
                 ))}
               </div>
             )}
           </section>
+
+          {finishedQuiz && (
+            <FinishedQuizPanel
+              key={finishedQuiz.sourceLabel + finishedQuiz.answered.length}
+              finishedQuiz={finishedQuiz}
+              onExit={() => setFinishedQuiz(null)}
+            />
+          )}
         </>
       )}
     </>
+  );
+}
+
+// Reserves its own space at the bottom of the page for the finished-session
+// score, rather than floating a fixed overlay on top of the course content
+// — the panel "slams" into room the page has already made for it, centered
+// within that space, instead of covering whatever was underneath.
+function FinishedQuizPanel({
+  finishedQuiz,
+  onExit,
+}: {
+  finishedQuiz: QuizSessionResult & { sourceLabel: string };
+  onExit: () => void;
+}) {
+  return (
+    <div className="flex min-h-[70vh] items-center justify-center py-12">
+      <div className="quiz-score-slam w-full max-w-xl">
+        <SessionCompletePanel
+          sourceLabel={finishedQuiz.sourceLabel}
+          passed={finishedQuiz.passed}
+          total={finishedQuiz.total}
+          answered={finishedQuiz.answered}
+          onExit={onExit}
+        />
+      </div>
+    </div>
+  );
+}
+
+// A flame that flies from the finished score panel to the sidebar's Streak
+// icon, only shown when the streak actually bumped today — landing there
+// triggers that icon's own catch-fire pulse (see Sidebar.tsx). Two frames
+// are used to commit the starting position before animating to the target,
+// same trick as the mode-select view-transition elsewhere in quiz_feature.
+function FlyingFlame({
+  from,
+  to,
+  onDone,
+}: {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  onDone: () => void;
+}) {
+  const [arrived, setArrived] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setArrived(true)));
+    const doneId = setTimeout(onDone, 750);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(doneId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pos = arrived ? to : from;
+
+  return (
+    <div
+      className="pointer-events-none fixed z-[80] text-accent"
+      style={{
+        left: pos.x,
+        top: pos.y,
+        transform: `translate(-50%, -50%) scale(${arrived ? 0.4 : 2.2}) rotate(${arrived ? 25 : -15}deg)`,
+        opacity: arrived ? 0 : 1,
+        filter: "drop-shadow(0 0 10px rgba(246, 169, 52, 0.9)) drop-shadow(0 0 20px rgba(251, 113, 133, 0.6))",
+        transition: "transform 700ms cubic-bezier(0.65, 0, 0.35, 1), opacity 150ms ease-in 550ms",
+      }}
+    >
+      <Flame size={44} fill="currentColor" />
+    </div>
   );
 }

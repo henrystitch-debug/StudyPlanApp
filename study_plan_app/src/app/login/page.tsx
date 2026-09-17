@@ -39,7 +39,7 @@ const CSS = `
     --muted: #7c8399;
     --accent: #f6a934;
     --accent-foreground: #1a1305;
-    --accent-strong: #fbc94b;
+    --accent-strong: var(--accent);
     --rose: #ff4d8d;
     --emerald: #7fae86;
     --glow-soft: 0 0 0 1px rgba(246, 169, 52, 0.22), 0 2px 20px rgba(246, 169, 52, 0.15);
@@ -65,7 +65,7 @@ const CSS = `
     --fg-secondary: #3a2350;
     --muted: #6b5a7a;
     --accent: #ff9100;
-    --accent-strong: #0d9488;
+    --accent-strong: var(--accent);
     --rose: #db2777;
     --emerald: #0d9488;
     --glow-soft: 0 0 0 2px rgba(255, 145, 0, 0.55), 0 2px 30px rgba(255, 145, 0, 0.38);

@@ -127,6 +127,59 @@ export async function updateUserStreak(userId: number, streak: number){
 }
 
 // ===============================================
+// Bump streak once per day, based on quiz_attempt history
+//================================================
+// Called after a quiz attempt is recorded for "today". Only the FIRST
+// attempt of a given calendar day should move the streak, so this checks
+// how many attempts exist for today (including the one just inserted) —
+// more than one means today's bump already happened. Otherwise: if the
+// user's last active day before today was yesterday, the streak
+// continues (+1); any earlier gap (or no prior history) resets it to 1.
+export async function bumpStreakIfEligible(
+  userId: number
+): Promise<{ streak: number; longestStreak: number; updated: boolean }> {
+  const userResult = await pool.query(
+    `SELECT streak, longest_streak FROM app_user WHERE user_id = $1`,
+    [userId]
+  );
+  const user = userResult.rows[0];
+  if (!user) throw new Error("User not found");
+
+  // attempt_date is a full timestamp, not a bare date — every comparison
+  // below casts it explicitly rather than relying on implicit midnight
+  // coercion, which would otherwise never match "today" once any attempt
+  // carries a real time-of-day component.
+  const todayCountResult = await pool.query(
+    `SELECT COUNT(*) AS count FROM quiz_attempt WHERE user_id = $1 AND attempt_date::date = CURRENT_DATE`,
+    [userId]
+  );
+  if (Number(todayCountResult.rows[0].count) > 1) {
+    return { streak: user.streak, longestStreak: user.longest_streak, updated: false };
+  }
+
+  const gapResult = await pool.query(
+    `SELECT CURRENT_DATE - MAX(attempt_date::date) AS gap_days
+     FROM quiz_attempt
+     WHERE user_id = $1 AND attempt_date::date < CURRENT_DATE`,
+    [userId]
+  );
+  const gapDays: number | null = gapResult.rows[0]?.gap_days;
+  const newStreak = gapDays === 1 ? user.streak + 1 : 1;
+  const newLongest = Math.max(newStreak, user.longest_streak ?? 0);
+
+  const updateResult = await pool.query(
+    `UPDATE app_user SET streak = $1, longest_streak = $2 WHERE user_id = $3 RETURNING streak, longest_streak`,
+    [newStreak, newLongest, userId]
+  );
+
+  return {
+    streak: updateResult.rows[0].streak,
+    longestStreak: updateResult.rows[0].longest_streak,
+    updated: true,
+  };
+}
+
+// ===============================================
 // UPDATE user password
 //================================================
 export async function updatePasswordByEmail(email: string, newPassword: string) {

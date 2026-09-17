@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Check, ImagePlus } from "lucide-react";
 
-const COVER_KEY = "study-plan-courses-cover";
+const COVER_KEY_PREFIX = "study-plan-courses-cover";
+const coverKey = (courseId: number) => `${COVER_KEY_PREFIX}:${courseId}`;
 const OUTPUT_WIDTH = 1200;
 const OUTPUT_HEIGHT = 300; // matches the banner's 4:1-ish aspect ratio
 
@@ -19,9 +20,9 @@ const DEFAULT_COVER_ID = "open-book";
 
 type CoverValue = { type: "preset"; id: string } | { type: "custom"; dataUrl: string };
 
-function readCover(): CoverValue {
+function readCover(courseId: number): CoverValue {
   try {
-    const raw = window.localStorage.getItem(COVER_KEY);
+    const raw = window.localStorage.getItem(coverKey(courseId));
     if (raw) return JSON.parse(raw) as CoverValue;
   } catch {
     /* ignore */
@@ -63,7 +64,7 @@ async function fileToBannerDataUrl(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
-export function CoursesCover() {
+export function CoursesCover({ courseId }: { courseId: number }) {
   const [cover, setCover] = useState<CoverValue>({ type: "preset", id: DEFAULT_COVER_ID });
   const [open, setOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -71,8 +72,8 @@ export function CoursesCover() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setCover(readCover());
-  }, []);
+    setCover(readCover(courseId));
+  }, [courseId]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -88,7 +89,7 @@ export function CoursesCover() {
     setCover(next);
     setUploadError(null);
     try {
-      window.localStorage.setItem(COVER_KEY, JSON.stringify(next));
+      window.localStorage.setItem(coverKey(courseId), JSON.stringify(next));
     } catch {
       setUploadError("That image is too large to save. Try a smaller one.");
     }
