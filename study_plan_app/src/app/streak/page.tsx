@@ -33,7 +33,7 @@ function StatCard({
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-panel-border bg-panel p-5">
-      <Icon size={18} className="text-accent" />
+      <Icon size={18} className="text-foreground" />
       <p className="text-[22px] font-medium text-[var(--accent-strong)] font-serif">
         {value}
       </p>
@@ -110,7 +110,7 @@ export default function StreakPage() {
         streak && (
           <>
             <div className="relative mb-8 overflow-hidden rounded-2xl border border-panel-border bg-[linear-gradient(to_bottom_right,var(--hero-from),var(--hero-to))] p-8 text-center">
-              <Flame size={28} className="mx-auto mb-3 text-rose" />
+              <Flame size={28} className="mx-auto mb-3 text-foreground" />
               <p className="text-[46px] font-medium leading-none text-[var(--accent-strong)] font-serif">
                 {streak.streak}
               </p>

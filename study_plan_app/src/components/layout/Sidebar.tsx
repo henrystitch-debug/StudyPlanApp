@@ -75,6 +75,24 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     router.replace("/login");
   };
 
+  // A finished quiz that bumps the streak (see courses/page.tsx) dispatches
+  // this once its flying-flame animation lands here, so the sidebar's own
+  // flame can visibly "catch" it — a brief pulse, not a persistent state.
+  const [refueling, setRefueling] = useState(false);
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const handleRefuel = () => {
+      setRefueling(true);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setRefueling(false), 800);
+    };
+    window.addEventListener("streak:refuel", handleRefuel);
+    return () => {
+      window.removeEventListener("streak:refuel", handleRefuel);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
   return (
     <>
       {open && (
@@ -111,7 +129,21 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                     : "text-muted hover:bg-[var(--overlay)]"
                 }`}
               >
-                <Icon size={18} />
+                {item.label === "Streak" ? (
+                  <span className="relative inline-flex">
+                    {refueling &&
+                      [0, 1].map((i) => (
+                        <span key={i} className="streak-catch-ring" style={{ animationDelay: `${i * 150}ms` }} />
+                      ))}
+                    <Icon
+                      size={18}
+                      data-streak-nav-icon=""
+                      className={refueling ? "streak-flame-pulse" : undefined}
+                    />
+                  </span>
+                ) : (
+                  <Icon size={18} />
+                )}
                 {item.label}
               </Link>
             );

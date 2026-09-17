@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getRetakeMarker, StudyMode } from "./quizCore";
+import { ChevronDown } from "lucide-react";
+import { AnsweredQuestion, getRetakeMarker, pickMotivationalMessage, SCORE_STYLES, StudyMode } from "./quizCore";
 
 // A few frame outlines loosen from an element's own border and step
 // outward, fading as they go — used wherever a "correct" result appears,
@@ -95,21 +96,56 @@ export function ScoreGauge({
   );
 }
 
+// One reviewed question in the end-of-session list — a single truncated
+// line (question only), colored by its category, folding down on click to
+// reveal the full question and what the user answered.
+export function ReviewRow({ item }: { item: AnsweredQuestion }) {
+  const [open, setOpen] = useState(false);
+  const style = SCORE_STYLES[item.category];
+  const dotColor =
+    item.category === "correct"
+      ? "var(--score-correct)"
+      : item.category === "partly"
+      ? "var(--score-mostly)"
+      : "var(--score-false)";
+
+  return (
+    <li className={`rounded-md border px-2.5 py-1.5 text-left ${style.border} ${style.bg}`}>
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 text-left">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
+        <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">{item.question}</span>
+        <ChevronDown size={13} className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-1.5 border-t border-panel-border pt-2 text-[12px] leading-relaxed">
+          <p className="text-[var(--text-secondary)]">{item.question}</p>
+          <p className="text-muted">
+            Your answer: <span className={style.text}>{item.userAnswer || "(no answer)"}</span>
+          </p>
+        </div>
+      )}
+    </li>
+  );
+}
+
 // Shared end-of-session panel for all quiz modes: score is the headline.
 // >=80% is green, >=50% is yellow, below is red — flat colors, no
 // animation, except a perfect score, which gets the flowing green ring/text
 // (running from the very first frame) plus faint outward pulses. The whole
 // panel focuses in (blur -> sharp, faded -> opaque) on open regardless of
-// tier.
+// tier. Below the score, every answered question gets a scrollable,
+// one-line review row — colored by result, folding open on click.
 export function SessionCompletePanel({
   sourceLabel,
   passed,
   total,
+  answered,
   onExit,
 }: {
   sourceLabel: string;
   passed: number;
   total: number;
+  answered: AnsweredQuestion[];
   onExit: () => void;
 }) {
   const ratio = total > 0 ? passed / total : 0;
@@ -117,6 +153,7 @@ export function SessionCompletePanel({
   const tier: "green" | "yellow" | "red" = ratio >= 0.8 ? "green" : ratio >= 0.5 ? "yellow" : "red";
   const tierColorVar = tier === "green" ? "--score-correct" : tier === "yellow" ? "--score-mostly" : "--score-false";
   const scoreTextClass = "text-[52px] font-bold font-serif leading-[1.2]";
+  const [motivation] = useState(() => pickMotivationalMessage(passed, total));
 
   return (
     <div
@@ -127,11 +164,24 @@ export function SessionCompletePanel({
       <p className="mb-1 text-[11px] uppercase tracking-wider text-muted">{sourceLabel}</p>
       <h2 className="mb-3 text-[13px] font-medium text-muted font-serif">Session complete</h2>
       <p
-        className={`mb-8 ${scoreTextClass} ${isPerfect ? "result-flowing-text" : ""}`}
+        className={`${scoreTextClass} ${isPerfect ? "result-flowing-text" : ""}`}
         style={isPerfect ? undefined : { color: `var(${tierColorVar})` }}
       >
         {passed}/{total}
       </p>
+      <p className="mb-6 text-[13px] text-[var(--text-secondary)]">
+        <span className="mr-1.5">{motivation.icon}</span>
+        {motivation.text}
+      </p>
+
+      {answered.length > 0 && (
+        <ul className="mb-6 flex max-h-64 flex-col gap-1.5 overflow-y-auto text-left">
+          {answered.map((item, i) => (
+            <ReviewRow key={i} item={item} />
+          ))}
+        </ul>
+      )}
+
       <button
         onClick={onExit}
         className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"

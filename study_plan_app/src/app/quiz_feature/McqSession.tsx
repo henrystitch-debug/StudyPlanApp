@@ -1,7 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { McqQuestion, SCORE_STYLES, ScoreCategory, classifyScore, isPassed, labelFor, setRetakeMarker } from "./quizCore";
+import {
+  AnsweredQuestion,
+  McqQuestion,
+  SCORE_STYLES,
+  ScoreCategory,
+  classifyScore,
+  isPassed,
+  labelFor,
+  setRetakeMarker,
+} from "./quizCore";
 import { CorrectBurst, RetakeMarkerDot, SessionCompletePanel } from "./QuizSharedUI";
 
 export function McqSession({
@@ -9,23 +18,33 @@ export function McqSession({
   bank,
   onExit,
   onCorrect,
-  count,
+  onFinished,
 }: {
   sourceLabel: string;
   bank: McqQuestion[];
   onExit: () => void;
   onCorrect: () => void;
-  count: number;
+  onFinished?: (result: { passed: number; total: number; answered: AnsweredQuestion[] }) => void;
 }) {
-  const questions = bank.slice(0, count);
+  const questions = bank;
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [results, setResults] = useState<(ScoreCategory | null)[]>(Array(questions.length).fill(null));
+  const [answered, setAnswered] = useState<AnsweredQuestion[]>([]);
   const total = questions.length;
   const isDone = index >= total;
   const progress = (Math.min(index, total) / total) * 100;
   const passed = results.filter(isPassed).length;
+
+  const reportedRef = useRef(false);
+  useEffect(() => {
+    if (isDone && !reportedRef.current) {
+      reportedRef.current = true;
+      onFinished?.({ passed, total, answered });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDone]);
 
   const toggleOption = (i: number) => {
     if (submitted) return;
@@ -45,6 +64,11 @@ export function McqSession({
     if (category === "correct") onCorrect();
     setRetakeMarker("mcq", q.question, category);
     setResults((prev) => prev.map((r, i) => (i === index ? category : r)));
+    const selectedTexts = q.options.filter((_, i) => selected.has(i)).join(", ");
+    setAnswered((prev) => [
+      ...prev,
+      { question: q.question, userAnswer: selectedTexts, category, mode: "mcq", quizItemId: q.quizItemId },
+    ]);
     setSubmitted(true);
   };
 
@@ -55,7 +79,7 @@ export function McqSession({
   };
 
   if (isDone) {
-    return <SessionCompletePanel sourceLabel={sourceLabel} passed={passed} total={total} onExit={onExit} />;
+    return <SessionCompletePanel sourceLabel={sourceLabel} passed={passed} total={total} answered={answered} onExit={onExit} />;
   }
 
   const q = questions[index];
@@ -120,10 +144,12 @@ export function McqSession({
 
       {submitted && result ? (
         <div
-          className={`relative mb-4 flex items-center justify-between overflow-visible rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
+          className={`mb-4 flex items-center justify-between rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
         >
-          {result === "correct" && <CorrectBurst />}
-          <span className={`text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>{SCORE_STYLES[result].label}</span>
+          <span className={`relative overflow-visible text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>
+            {result === "correct" && <CorrectBurst />}
+            {SCORE_STYLES[result].label}
+          </span>
           <button
             onClick={handleNext}
             className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"

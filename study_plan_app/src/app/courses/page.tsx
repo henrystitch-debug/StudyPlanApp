@@ -21,6 +21,7 @@ import {
   Clock,
   Eye,
   EyeOff,
+  Flame,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,7 +29,9 @@ import { useRouter } from "next/navigation";
 import { type Course } from "@/types/course";
 import { gradientForCourse } from "@/components/dashboard/constants";
 import { QuizTakeButton, QuizExpandPanel } from "@/app/quiz_feature/QuizFocusArea";
-import { QuizPlayer } from "@/app/quiz_feature/QuizPlayer";
+import { QuizPlayer, type QuizSessionResult } from "@/app/quiz_feature/QuizPlayer";
+import { SessionCompletePanel } from "@/app/quiz_feature/QuizSharedUI";
+import { scoreForCategory } from "@/app/quiz_feature/quizCore";
 import { AddCourseCard } from "@/components/courses/AddCourseCard";
 import { EditCourseForm } from "@/components/courses/EditCourseForm";
 
@@ -45,14 +48,16 @@ type DocumentSummary = {
   topicIndex: TopicIndexItem[];
 };
 
-type QuizFlashcard = { question: string; answer: string };
-type QuizMcq = { question: string; options: string[]; correctIndex: number };
-type QuizOpenText = { question: string; modelAnswer: string };
+type QuizFlashcard = { quizItemId: number; question: string; answer: string };
+type QuizMcq = { quizItemId: number; question: string; options: string[]; correctIndex: number };
+type QuizOpenText = { quizItemId: number; question: string; modelAnswer: string };
+type QuizIds = { flashcards: number | null; mcq: number | null; freetext: number | null };
 
 type Quiz = {
   flashcards: QuizFlashcard[];
   mcq: QuizMcq[];
   openText: QuizOpenText[];
+  quizIds: QuizIds;
 };
 
 type CourseDocument = {
@@ -270,6 +275,11 @@ export default function CoursesPage() {
 
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [finishedQuiz, setFinishedQuiz] = useState<(QuizSessionResult & { sourceLabel: string }) | null>(null);
+  const [flyingFlame, setFlyingFlame] = useState<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null>(null);
   const [isLoadingPersistedUploads, setIsLoadingPersistedUploads] = useState(false);
   const [persistedUploadsError, setPersistedUploadsError] = useState<string | null>(null);
 
@@ -1067,7 +1077,12 @@ const handleGenerateQuiz = async (id: string) => {
               ...d,
               isGeneratingQuiz: false,
               isTakeQuizOpen: true,
-              quiz: { flashcards: data.flashcards ?? [], mcq: data.mcq ?? [], openText: data.openText ?? [] },
+              quiz: {
+                flashcards: data.flashcards ?? [],
+                mcq: data.mcq ?? [],
+                openText: data.openText ?? [],
+                quizIds: data.quizIds ?? { flashcards: null, mcq: null, freetext: null },
+              },
             }
           : d
       )
@@ -1095,6 +1110,75 @@ const handleGenerateQuiz = async (id: string) => {
       prev.map((d) => (d.id === id ? { ...d, isTakeQuizOpen: willOpen } : d))
     );
     if (willOpen) ensureQuizLoaded(id);
+  };
+
+  // A quiz session just finished (see QuizPlayer's zoom-then-handoff): close
+  // this document's "Take Quiz" panel and present the score at the page
+  // level instead, so it can slam onto the now-undimmed page.
+  const handleQuizSessionComplete = (id: string, sourceLabel: string, result: QuizSessionResult) => {
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, isTakeQuizOpen: false } : d))
+    );
+    setFinishedQuiz({ ...result, sourceLabel });
+    persistAttemptsAndStreak(result.attempts);
+  };
+
+  // Saves one quiz_attempt (+ its item_attempts) per mode actually touched
+  // in the session, then asks the server whether today's streak should
+  // bump (bumpStreakIfEligible only moves it on the day's first attempt).
+  // Only plays the flying-flame animation when the streak really did move.
+  const persistAttemptsAndStreak = async (attempts: QuizSessionResult["attempts"]) => {
+    if (!userId) return;
+    const recordable = attempts.filter((a) => a.quizId !== null && a.total > 0);
+    if (recordable.length === 0) return;
+
+    try {
+      await Promise.all(
+        recordable.map((a) =>
+          fetch("/api/attempt/attemptCreate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId,
+              quizId: a.quizId,
+              score: Math.round((a.passed / a.total) * 100),
+              items: a.answered.map((q) => ({
+                quizItemId: q.quizItemId,
+                score: scoreForCategory(q.category),
+                level: q.category,
+                userAnswer: q.userAnswer,
+              })),
+            }),
+          })
+        )
+      );
+
+      const streakRes = await fetch(`/api/streak/streakUpdate?userId=${userId}`, { method: "PUT" });
+      const streakData = await streakRes.json();
+      if (streakRes.ok && streakData.updated) {
+        triggerStreakFireAnimation();
+      }
+    } catch (err) {
+      console.error("Failed to save quiz attempt/streak", err);
+    }
+  };
+
+  // fromEl defaults to the just-appeared score panel (the real completion
+  // flow); the demo button has no such panel, so it passes its own
+  // position instead.
+  const triggerStreakFireAnimation = (fromEl?: Element | null) => {
+    // Give the score panel a frame to actually paint before measuring it.
+    requestAnimationFrame(() => {
+      const origin = fromEl ?? document.querySelector(".quiz-score-slam");
+      const toEl = document.querySelector("[data-streak-nav-icon]");
+      if (!origin || !toEl) return;
+      const fromRect = origin.getBoundingClientRect();
+      const toRect = toEl.getBoundingClientRect();
+      setFlyingFlame({
+        from: { x: fromRect.left + fromRect.width / 2, y: fromRect.top + 24 },
+        to: { x: toRect.left + toRect.width / 2, y: toRect.top + toRect.height / 2 },
+      });
+    });
   };
 
   const ensureQuizLoaded = async (id: string) => {
@@ -1197,9 +1281,41 @@ const handleGenerateQuiz = async (id: string) => {
 
   return (
     <>
-      <h1 className="mb-6 text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
-        Your Courses
-      </h1>
+      <div
+        className={`fixed inset-0 z-[55] bg-black/60 transition-opacity duration-300 ${
+          documents.some((d) => d.isTakeQuizOpen)
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+        onClick={() =>
+          setDocuments((prev) => prev.map((d) => ({ ...d, isTakeQuizOpen: false })))
+        }
+      />
+
+      {flyingFlame && (
+        <FlyingFlame
+          from={flyingFlame.from}
+          to={flyingFlame.to}
+          onDone={() => {
+            setFlyingFlame(null);
+            window.dispatchEvent(new Event("streak:refuel"));
+          }}
+        />
+      )}
+
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-[26px] font-medium tracking-tight text-foreground font-serif sm:text-[30px]">
+          Your Courses
+        </h1>
+        <button
+          onClick={(e) => triggerStreakFireAnimation(e.currentTarget)}
+          className="flex items-center gap-1.5 rounded-md border border-dashed border-panel-border px-2.5 py-1 text-[11.5px] text-muted hover:text-[var(--text-secondary)]"
+          title="Demo only — plays the flying-flame animation without actually bumping the streak"
+        >
+          <Flame size={13} />
+          Demo: streak increase
+        </button>
+      </div>
 
       {isLoadingCourses ? (
         <div className="mb-8 flex min-h-[132px] items-center justify-center rounded-xl border border-panel-border bg-panel text-[12.5px] text-muted">
@@ -1605,7 +1721,9 @@ const handleGenerateQuiz = async (id: string) => {
                 {visibleDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="rounded-lg border border-panel-border bg-panel"
+                    className={`rounded-lg border border-panel-border bg-panel ${
+                      doc.isTakeQuizOpen ? "relative z-[60]" : ""
+                    }`}
                   >
                     <div className="group flex items-center gap-2.5 px-3 py-2.5">
                       <FileIconLucide size={15} className="shrink-0 text-accent" />
@@ -1629,11 +1747,13 @@ const handleGenerateQuiz = async (id: string) => {
                             {doc.isLoadingSummaryView ? "Loading…" : doc.isSummaryVisible ? "Hide summary" : "View summary"}
                           </button>
                         )}
-                      <QuizTakeButton
-                        open={!!doc.isTakeQuizOpen}
-                        onClick={() => toggleTakeQuiz(doc.id)}
-                        disabled={doc.isUploading || !doc.uploadId}
-                      />
+                      {doc.quiz && (
+                        <QuizTakeButton
+                          open={!!doc.isTakeQuizOpen}
+                          onClick={() => toggleTakeQuiz(doc.id)}
+                          disabled={doc.isUploading || !doc.uploadId}
+                        />
+                      )}
 
                       <span className="flex-1" />
 
@@ -1860,15 +1980,21 @@ const handleGenerateQuiz = async (id: string) => {
                                 quiz={{
                                   flashcards: doc.quiz.flashcards,
                                   mcq: doc.quiz.mcq.map((q) => ({
+                                    quizItemId: q.quizItemId,
                                     question: q.question,
                                     options: q.options,
                                     correctIndices: [q.correctIndex],
                                   })),
                                   openText: doc.quiz.openText.map((q) => ({
+                                    quizItemId: q.quizItemId,
                                     question: q.question,
                                     answer: q.modelAnswer,
                                   })),
+                                  quizIds: doc.quiz.quizIds,
                                 }}
+                                onSessionComplete={(result) =>
+                                  handleQuizSessionComplete(doc.id, doc.name, result)
+                                }
                               />
                             </div>
                           ) : (
@@ -1884,8 +2010,87 @@ const handleGenerateQuiz = async (id: string) => {
               </div>
             )}
           </section>
+
+          {finishedQuiz && (
+            <FinishedQuizPanel
+              key={finishedQuiz.sourceLabel + finishedQuiz.answered.length}
+              finishedQuiz={finishedQuiz}
+              onExit={() => setFinishedQuiz(null)}
+            />
+          )}
         </>
       )}
     </>
+  );
+}
+
+// Reserves its own space at the bottom of the page for the finished-session
+// score, rather than floating a fixed overlay on top of the course content
+// — the panel "slams" into room the page has already made for it, centered
+// within that space, instead of covering whatever was underneath.
+function FinishedQuizPanel({
+  finishedQuiz,
+  onExit,
+}: {
+  finishedQuiz: QuizSessionResult & { sourceLabel: string };
+  onExit: () => void;
+}) {
+  return (
+    <div className="flex min-h-[70vh] items-center justify-center py-12">
+      <div className="quiz-score-slam w-full max-w-xl">
+        <SessionCompletePanel
+          sourceLabel={finishedQuiz.sourceLabel}
+          passed={finishedQuiz.passed}
+          total={finishedQuiz.total}
+          answered={finishedQuiz.answered}
+          onExit={onExit}
+        />
+      </div>
+    </div>
+  );
+}
+
+// A flame that flies from the finished score panel to the sidebar's Streak
+// icon, only shown when the streak actually bumped today — landing there
+// triggers that icon's own catch-fire pulse (see Sidebar.tsx). Two frames
+// are used to commit the starting position before animating to the target,
+// same trick as the mode-select view-transition elsewhere in quiz_feature.
+function FlyingFlame({
+  from,
+  to,
+  onDone,
+}: {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  onDone: () => void;
+}) {
+  const [arrived, setArrived] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setArrived(true)));
+    const doneId = setTimeout(onDone, 750);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(doneId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pos = arrived ? to : from;
+
+  return (
+    <div
+      className="pointer-events-none fixed z-[80] text-accent"
+      style={{
+        left: pos.x,
+        top: pos.y,
+        transform: `translate(-50%, -50%) scale(${arrived ? 0.4 : 2.2}) rotate(${arrived ? 25 : -15}deg)`,
+        opacity: arrived ? 0 : 1,
+        filter: "drop-shadow(0 0 10px rgba(246, 169, 52, 0.9)) drop-shadow(0 0 20px rgba(251, 113, 133, 0.6))",
+        transition: "transform 700ms cubic-bezier(0.65, 0, 0.35, 1), opacity 150ms ease-in 550ms",
+      }}
+    >
+      <Flame size={44} fill="currentColor" />
+    </div>
   );
 }

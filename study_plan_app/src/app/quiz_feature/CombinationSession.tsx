@@ -1,13 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
-  COMBINABLE_MODES,
+  AnsweredQuestion,
   Flashcard,
   McqQuestion,
   SCORE_STYLES,
   ScoreCategory,
-  StudyMode,
   classifyScore,
   isPassed,
   labelFor,
@@ -22,54 +21,66 @@ type CombinationBanks = {
   freetext: Flashcard[];
 };
 
-// Only offers modes whose bank actually has content — a document with no
-// generated MCQ, say, should never have combination silently try to draw
-// from an empty array.
-function availableModes(banks: CombinationBanks): (typeof COMBINABLE_MODES)[number][] {
-  return COMBINABLE_MODES.filter((mode) => banks[mode === "freetext" ? "freetext" : mode].length > 0);
+type CombinationItem =
+  | { mode: "flashcards"; data: Flashcard }
+  | { mode: "mcq"; data: McqQuestion }
+  | { mode: "freetext"; data: Flashcard };
+
+// Every real question from every combinable bank, each used exactly
+// once — no random-with-replacement padding to hit a target count, since
+// there's no count to hit any more; combination just runs through
+// everything the AI generated, in a shuffled order.
+function buildShuffledItems(banks: CombinationBanks): CombinationItem[] {
+  const items: CombinationItem[] = [
+    ...banks.flashcards.map((data) => ({ mode: "flashcards" as const, data })),
+    ...banks.mcq.map((data) => ({ mode: "mcq" as const, data })),
+    ...banks.freetext.map((data) => ({ mode: "freetext" as const, data })),
+  ];
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
 }
 
-// One question, rendered differently depending on the mode randomly
-// assigned to this slot. Simpler than the dedicated single-mode sessions
-// (e.g. Free Text here skips the word-by-word scan) since this has to
-// smoothly switch shape every question.
+// One question, rendered differently depending on the mode assigned to
+// this slot. Simpler than the dedicated single-mode sessions (e.g. Free
+// Text here skips the word-by-word scan) since this has to smoothly
+// switch shape every question.
 function CombinationQuestion({
-  mode,
-  banks,
+  item,
   onDone,
   onCorrect,
 }: {
-  mode: StudyMode;
-  banks: CombinationBanks;
-  onDone: (category: ScoreCategory) => void;
+  item: CombinationItem;
+  onDone: (category: ScoreCategory, userAnswer: string) => void;
   onCorrect: () => void;
 }) {
-  if (mode === "flashcards") return <CombinationFlashcard bank={banks.flashcards} onDone={onDone} onCorrect={onCorrect} />;
-  if (mode === "mcq") return <CombinationMcq bank={banks.mcq} onDone={onDone} onCorrect={onCorrect} />;
-  return <CombinationFreeText bank={banks.freetext} onDone={onDone} onCorrect={onCorrect} />;
+  if (item.mode === "flashcards") return <CombinationFlashcard card={item.data} onDone={onDone} onCorrect={onCorrect} />;
+  if (item.mode === "mcq") return <CombinationMcq q={item.data} onDone={onDone} onCorrect={onCorrect} />;
+  return <CombinationFreeText card={item.data} onDone={onDone} onCorrect={onCorrect} />;
 }
 
 function CombinationFlashcard({
-  bank,
+  card,
   onDone,
   onCorrect,
 }: {
-  bank: Flashcard[];
-  onDone: (category: ScoreCategory) => void;
+  card: Flashcard;
+  onDone: (category: ScoreCategory, userAnswer: string) => void;
   onCorrect: () => void;
 }) {
-  const [card] = useState(() => bank[Math.floor(Math.random() * bank.length)]);
   const [flipped, setFlipped] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
 
   const handleRate = (rating: ScoreCategory) => {
     if (rating !== "correct") {
-      onDone(rating);
+      onDone(rating, card.answer);
       return;
     }
     onCorrect();
     setCelebrating(true);
-    setTimeout(() => onDone(rating), 550);
+    setTimeout(() => onDone(rating, card.answer), 550);
   };
 
   return (
@@ -115,15 +126,14 @@ function CombinationFlashcard({
 }
 
 function CombinationMcq({
-  bank,
+  q,
   onDone,
   onCorrect,
 }: {
-  bank: McqQuestion[];
-  onDone: (category: ScoreCategory) => void;
+  q: McqQuestion;
+  onDone: (category: ScoreCategory, userAnswer: string) => void;
   onCorrect: () => void;
 }) {
-  const [q] = useState(() => bank[Math.floor(Math.random() * bank.length)]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<ScoreCategory | null>(null);
@@ -146,12 +156,14 @@ function CombinationMcq({
     setSubmitted(true);
   };
 
+  const selectedTexts = () => q.options.filter((_, i) => selected.has(i)).join(", ");
+
   return (
     <div
       onKeyDown={(e) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
-        if (submitted) onDone(result as ScoreCategory);
+        if (submitted) onDone(result as ScoreCategory, selectedTexts());
         else handleSubmit();
       }}
     >
@@ -184,12 +196,14 @@ function CombinationMcq({
 
       {submitted && result ? (
         <div
-          className={`relative flex items-center justify-between overflow-visible rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
+          className={`flex items-center justify-between rounded-md border px-3 py-2.5 ${SCORE_STYLES[result].border} ${SCORE_STYLES[result].bg}`}
         >
-          {result === "correct" && <CorrectBurst />}
-          <span className={`text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>{SCORE_STYLES[result].label}</span>
+          <span className={`relative overflow-visible text-[13.5px] font-medium ${SCORE_STYLES[result].text}`}>
+            {result === "correct" && <CorrectBurst />}
+            {SCORE_STYLES[result].label}
+          </span>
           <button
-            onClick={() => onDone(result)}
+            onClick={() => onDone(result, selectedTexts())}
             className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
           >
             Next
@@ -208,15 +222,14 @@ function CombinationMcq({
 }
 
 function CombinationFreeText({
-  bank,
+  card,
   onDone,
   onCorrect,
 }: {
-  bank: Flashcard[];
-  onDone: (category: ScoreCategory) => void;
+  card: Flashcard;
+  onDone: (category: ScoreCategory, userAnswer: string) => void;
   onCorrect: () => void;
 }) {
-  const [card] = useState(() => bank[Math.floor(Math.random() * bank.length)]);
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [percent, setPercent] = useState(0);
@@ -236,7 +249,7 @@ function CombinationFreeText({
       onKeyDown={(e) => {
         if (e.key === "Enter" && submitted) {
           e.preventDefault();
-          onDone(result as ScoreCategory);
+          onDone(result as ScoreCategory, answer);
         }
       }}
     >
@@ -268,7 +281,7 @@ function CombinationFreeText({
             </p>
           </div>
           <button
-            onClick={() => onDone(result as ScoreCategory)}
+            onClick={() => onDone(result as ScoreCategory, answer)}
             className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
           >
             Next
@@ -307,35 +320,62 @@ export function CombinationSession({
   banks,
   onExit,
   onCorrect,
-  count,
+  onFinished,
 }: {
   sourceLabel: string;
   banks: CombinationBanks;
   onExit: () => void;
   onCorrect: () => void;
-  count: number;
+  onFinished?: (result: { passed: number; total: number; answered: AnsweredQuestion[] }) => void;
 }) {
-  const modes = availableModes(banks);
-  const pickRandomMode = () => modes[Math.floor(Math.random() * modes.length)];
-  const [modeSequence] = useState<StudyMode[]>(() => Array.from({ length: count }, pickRandomMode));
+  const [items] = useState<CombinationItem[]>(() => buildShuffledItems(banks));
   const [index, setIndex] = useState(0);
-  const [results, setResults] = useState<(ScoreCategory | null)[]>(Array(count).fill(null));
-  const total = count;
+  const [results, setResults] = useState<(ScoreCategory | null)[]>(Array(items.length).fill(null));
+  const [answered, setAnswered] = useState<AnsweredQuestion[]>([]);
+  const total = items.length;
   const isDone = index >= total;
   const progress = (Math.min(index, total) / total) * 100;
   const passed = results.filter(isPassed).length;
 
-  const handleQuestionDone = (category: ScoreCategory) => {
-    setRetakeMarker("combination", `${modeSequence[index]}:${index}`, category);
+  const reportedRef = useRef(false);
+  useEffect(() => {
+    if (isDone && !reportedRef.current) {
+      reportedRef.current = true;
+      onFinished?.({ passed, total, answered });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDone]);
+
+  const handleQuestionDone = (category: ScoreCategory, userAnswer: string) => {
+    const item = items[index];
+    setRetakeMarker("combination", `${item.mode}:${index}`, category);
     setResults((prev) => prev.map((r, i) => (i === index ? category : r)));
+    setAnswered((prev) => [
+      ...prev,
+      { question: item.data.question, userAnswer, category, mode: item.mode, quizItemId: item.data.quizItemId },
+    ]);
     setIndex((i) => i + 1);
   };
 
-  if (isDone) {
-    return <SessionCompletePanel sourceLabel={sourceLabel} passed={passed} total={total} onExit={onExit} />;
+  if (total === 0) {
+    return (
+      <div className="mx-auto max-w-xl rounded-2xl border border-panel-border bg-panel p-6 text-center">
+        <p className="mb-4 text-[13px] text-muted">No questions available for combination mode.</p>
+        <button
+          onClick={onExit}
+          className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
+        >
+          Back
+        </button>
+      </div>
+    );
   }
 
-  const currentMode = modeSequence[index];
+  if (isDone) {
+    return <SessionCompletePanel sourceLabel={sourceLabel} passed={passed} total={total} answered={answered} onExit={onExit} />;
+  }
+
+  const currentItem = items[index];
 
   return (
     <div className="mx-auto max-w-xl rounded-2xl border border-panel-border bg-panel p-6">
@@ -351,10 +391,10 @@ export function CombinationSession({
 
       <div className="mb-4 flex items-center gap-1.5">
         <p className="text-[11.5px] uppercase tracking-wider text-muted">{sourceLabel}</p>
-        <RetakeMarkerDot mode="combination" questionKey={`${currentMode}:${index}`} />
+        <RetakeMarkerDot mode="combination" questionKey={`${currentItem.mode}:${index}`} />
       </div>
 
-      <CombinationQuestion key={index} mode={currentMode} banks={banks} onDone={handleQuestionDone} onCorrect={onCorrect} />
+      <CombinationQuestion key={index} item={currentItem} onDone={handleQuestionDone} onCorrect={onCorrect} />
 
       <div className="mb-2 mt-5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--overlay)]">
         <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />

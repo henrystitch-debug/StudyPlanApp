@@ -2,7 +2,7 @@ import { Ear, ListChecks, PenLine, SquareStack, Layers, type LucideIcon } from "
 
 export type StudyMode = "flashcards" | "mcq" | "freetext" | "auditive" | "combination";
 export type ModeDef = { id: StudyMode; label: string; description: string; icon: LucideIcon };
-export type Step = "select-mode" | "select-count" | "session";
+export type Step = "select-mode" | "session";
 
 export const MODES: ModeDef[] = [
   { id: "flashcards", label: "Flashcards", description: "Flip through Q&A cards", icon: SquareStack },
@@ -12,21 +12,26 @@ export const MODES: ModeDef[] = [
   { id: "combination", label: "Combination", description: "All modes combined", icon: Layers },
 ];
 
-// Modes combination mode is allowed to draw from, picked at random with
-// replacement per question — repeats back to back are expected.
-export const COMBINABLE_MODES: Exclude<StudyMode, "auditive" | "combination">[] = [
-  "flashcards",
-  "mcq",
-  "freetext",
-];
-
 export const labelFor = (id: StudyMode) => MODES.find((m) => m.id === id)?.label;
 
-export const MIN_QUESTIONS = 3;
-export const MAX_QUESTIONS = 15;
+export type Flashcard = { quizItemId: number; question: string; answer: string };
+export type McqQuestion = { quizItemId: number; question: string; options: string[]; correctIndices: number[] };
 
-export type Flashcard = { question: string; answer: string };
-export type McqQuestion = { question: string; options: string[]; correctIndices: number[] };
+// quiz_id per real quiz type for one upload — null for a type that was
+// never generated. Needed to record an attempt against the right quiz row.
+export type QuizIds = { flashcards: number | null; mcq: number | null; freetext: number | null };
+
+// One answered question, kept for the end-of-session review list — enough
+// to show what was asked and what the user did with it — and doubling as
+// the unit persisted server-side (mode + quizItemId identify exactly which
+// quiz_item this was, regardless of which session type produced it).
+export type AnsweredQuestion = {
+  question: string;
+  userAnswer: string;
+  category: ScoreCategory;
+  mode: Exclude<StudyMode, "auditive" | "combination">;
+  quizItemId: number;
+};
 
 // Three tiers now (was four) — matches the end-of-session panel's own
 // >=80% / >=50% / below thresholds, so a single question's grade and the
@@ -68,6 +73,90 @@ export function classifyScore(percent: number): ScoreCategory {
 
 export function isPassed(r: ScoreCategory | null): boolean {
   return r === "correct";
+}
+
+// One real quiz's worth of answers within a finished session — a plain
+// flashcards/mcq/freetext session produces exactly one of these, while a
+// combination session (which mixes all three) produces one per mode it
+// actually touched. This is the unit the caller persists as a single
+// quiz_attempt row plus its item_attempts.
+export type ModeAttempt = {
+  mode: Exclude<StudyMode, "auditive" | "combination">;
+  quizId: number | null;
+  passed: number;
+  total: number;
+  answered: AnsweredQuestion[];
+};
+
+const SCORE_FOR_CATEGORY: Record<ScoreCategory, number> = { correct: 100, partly: 50, false: 0 };
+
+// Splits a session's flat answered list back out by mode (a no-op split
+// for flashcards/mcq/freetext sessions, since every item already shares
+// the same mode there) so each group can be recorded as its own attempt.
+export function groupAnsweredByMode(answered: AnsweredQuestion[], quizIds: QuizIds): ModeAttempt[] {
+  const groups = new Map<AnsweredQuestion["mode"], AnsweredQuestion[]>();
+  for (const item of answered) {
+    const list = groups.get(item.mode) ?? [];
+    list.push(item);
+    groups.set(item.mode, list);
+  }
+  return Array.from(groups.entries()).map(([mode, items]) => ({
+    mode,
+    quizId: quizIds[mode],
+    passed: items.filter((i) => isPassed(i.category)).length,
+    total: items.length,
+    answered: items,
+  }));
+}
+
+export function scoreForCategory(category: ScoreCategory): number {
+  return SCORE_FOR_CATEGORY[category];
+}
+
+// End-of-session encouragement, tiered by how many questions were missed
+// (absolute count, not percentage — missing 2 out of 3 reads very
+// differently than missing 2 out of 30). One is picked at random per
+// session so repeat perfect scores don't always show the same line.
+const MOTIVATION_TIERS: { icon: string; lines: string[] }[] = [
+  {
+    icon: "🏆",
+    lines: [
+      "Flawless! You nailed every single question.",
+      "Perfect score — you clearly know your stuff.",
+      "100%. Nothing left to prove here.",
+    ],
+  },
+  {
+    icon: "🔥",
+    lines: [
+      "So close to perfect — great work!",
+      "Almost flawless, just a couple slipped through.",
+      "Strong performance, right at the top.",
+    ],
+  },
+  {
+    icon: "💪",
+    lines: [
+      "Solid effort — you've got a good grasp on this.",
+      "Good work, a bit more practice and you'll be unstoppable.",
+      "Not bad at all — the basics are clearly there.",
+    ],
+  },
+  {
+    icon: "🌱",
+    lines: [
+      "Every attempt makes you sharper — keep at it.",
+      "Good start — review and try again, you'll improve fast.",
+      "Progress isn't always a high score, it's showing up. Nice try!",
+    ],
+  },
+];
+
+export function pickMotivationalMessage(passed: number, total: number): { icon: string; text: string } {
+  const missed = total - passed;
+  const tier = missed === 0 ? 0 : missed <= 2 ? 1 : missed <= 5 ? 2 : 3;
+  const { icon, lines } = MOTIVATION_TIERS[tier];
+  return { icon, text: lines[Math.floor(Math.random() * lines.length)] };
 }
 
 // Excluded from matching — otherwise any answer sharing so much as "the"

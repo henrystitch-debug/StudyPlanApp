@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
+  AnsweredQuestion,
   Flashcard,
   SCORE_STYLES,
   ScoreCategory,
@@ -168,15 +169,15 @@ export function FreeTextSession({
   bank,
   onExit,
   onCorrect,
-  count,
+  onFinished,
 }: {
   sourceLabel: string;
   bank: Flashcard[];
   onExit: () => void;
   onCorrect: () => void;
-  count: number;
+  onFinished?: (result: { passed: number; total: number; answered: AnsweredQuestion[] }) => void;
 }) {
-  const cards = bank.slice(0, count);
+  const cards = bank;
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -184,12 +185,22 @@ export function FreeTextSession({
   const [percent, setPercent] = useState(0);
   const [gaugeDurationMs, setGaugeDurationMs] = useState(900);
   const [results, setResults] = useState<(ScoreCategory | null)[]>(Array(cards.length).fill(null));
+  const [answered, setAnswered] = useState<AnsweredQuestion[]>([]);
   const [showCorrectEffect, setShowCorrectEffect] = useState(false);
   const pendingCorrectRef = useRef(false);
   const total = cards.length;
   const isDone = index >= total;
   const progress = (Math.min(index, total) / total) * 100;
   const passed = results.filter(isPassed).length;
+
+  const reportedRef = useRef(false);
+  useEffect(() => {
+    if (isDone && !reportedRef.current) {
+      reportedRef.current = true;
+      onFinished?.({ passed, total, answered });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDone]);
 
   const handleSubmit = () => {
     setSubmitted(true);
@@ -210,6 +221,16 @@ export function FreeTextSession({
     pendingCorrectRef.current = category === "correct";
     setRetakeMarker("freetext", cards[index].question, category);
     setResults((prev) => prev.map((r, i) => (i === index ? category : r)));
+    setAnswered((prev) => [
+      ...prev,
+      {
+        question: cards[index].question,
+        userAnswer: answer,
+        category,
+        mode: "freetext",
+        quizItemId: cards[index].quizItemId,
+      },
+    ]);
   };
 
   const handleReveal = (finalPercent: number, durationMs: number) => {
@@ -240,7 +261,7 @@ export function FreeTextSession({
   };
 
   if (isDone) {
-    return <SessionCompletePanel sourceLabel={sourceLabel} passed={passed} total={total} onExit={onExit} />;
+    return <SessionCompletePanel sourceLabel={sourceLabel} passed={passed} total={total} answered={answered} onExit={onExit} />;
   }
 
   const card = cards[index];

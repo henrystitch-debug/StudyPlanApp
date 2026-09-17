@@ -1,9 +1,20 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ArrowLeft } from "lucide-react";
-import { Flashcard, MAX_QUESTIONS, McqQuestion, MIN_QUESTIONS, MODES, StudyMode, Step, labelFor } from "./quizCore";
-import { ModeCard, CountStep } from "./QuizSetupSteps";
+import {
+  AnsweredQuestion,
+  Flashcard,
+  McqQuestion,
+  MODES,
+  ModeAttempt,
+  QuizIds,
+  StudyMode,
+  Step,
+  groupAnsweredByMode,
+  labelFor,
+} from "./quizCore";
+import { ModeCard } from "./QuizSetupSteps";
 import { FlashcardSession } from "./FlashcardSession";
 import { McqSession } from "./McqSession";
 import { FreeTextSession } from "./FreeTextSession";
@@ -13,6 +24,14 @@ export type QuizPlayerData = {
   flashcards: Flashcard[];
   mcq: McqQuestion[];
   openText: Flashcard[];
+  quizIds: QuizIds;
+};
+
+export type QuizSessionResult = {
+  passed: number;
+  total: number;
+  answered: AnsweredQuestion[];
+  attempts: ModeAttempt[];
 };
 
 // Auditive mode has no real interaction built yet — a plain typed-answer
@@ -23,17 +42,29 @@ function AuditivePlaceholder({
   sourceLabel,
   prompts,
   onExit,
-  count,
 }: {
   sourceLabel: string;
   prompts: string[];
   onExit: () => void;
-  count: number;
 }) {
-  const questions = prompts.slice(0, count);
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
-  const total = questions.length;
+  const total = prompts.length;
+
+  if (total === 0) {
+    return (
+      <div className="mx-auto max-w-xl rounded-2xl border border-panel-border bg-panel p-6 text-center">
+        <p className="mb-4 text-[13px] text-muted">No questions available for auditive mode.</p>
+        <button
+          onClick={onExit}
+          className="rounded-full border border-panel-border bg-[var(--overlay-strong)] px-4 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:bg-[var(--overlay)]"
+        >
+          Back
+        </button>
+      </div>
+    );
+  }
+
   const progress = ((index + 1) / total) * 100;
 
   const handleNext = () => {
@@ -54,7 +85,7 @@ function AuditivePlaceholder({
       </div>
 
       <p className="mb-1 text-[11px] uppercase tracking-wider text-muted">{sourceLabel}</p>
-      <h2 className="mb-6 text-[19px] font-medium leading-snug text-foreground font-serif">{questions[index]}</h2>
+      <h2 className="mb-6 text-[19px] font-medium leading-snug text-foreground font-serif">{prompts[index]}</h2>
 
       <input
         value={answer}
@@ -83,26 +114,26 @@ function AuditivePlaceholder({
   );
 }
 
-// The mode-select -> count -> session flow, plus the shared Web Audio setup
+// The mode-select -> session flow, plus the shared Web Audio setup
 // (hover/click/correct sounds) used across every step. Driven entirely by
 // the caller's already-generated quiz for one document — there's no
-// upload/paste step here, the source is already fixed.
-export function QuizPlayer({ sourceLabel, quiz }: { sourceLabel: string; quiz: QuizPlayerData }) {
+// upload/paste step or question-count picker, every generated question is
+// used. When a session finishes, the score panel briefly zooms in place
+// (see quiz-session-zoom in globals.css) before onSessionComplete hands the
+// result up to the caller, which is expected to close this player's host
+// panel and present the score on its own (the "slam" landing).
+export function QuizPlayer({
+  sourceLabel,
+  quiz,
+  onSessionComplete,
+}: {
+  sourceLabel: string;
+  quiz: QuizPlayerData;
+  onSessionComplete?: (result: QuizSessionResult) => void;
+}) {
   const [step, setStep] = useState<Step>("select-mode");
   const [selectedMode, setSelectedMode] = useState<StudyMode | null>(null);
-  const [questionCount, setQuestionCount] = useState(MIN_QUESTIONS);
-
-  const availableCount = useMemo(() => {
-    const combinableTotal = quiz.flashcards.length + quiz.mcq.length + quiz.openText.length;
-    const counts: Record<StudyMode, number> = {
-      flashcards: quiz.flashcards.length,
-      mcq: quiz.mcq.length,
-      freetext: quiz.openText.length,
-      auditive: quiz.flashcards.length,
-      combination: combinableTotal > 0 ? MAX_QUESTIONS : 0,
-    };
-    return counts;
-  }, [quiz]);
+  const [zooming, setZooming] = useState(false);
 
   // Web Audio API: buffers are decoded once and played via fresh
   // AudioBufferSourceNodes so rapid re-triggers never cut each other off.
@@ -172,21 +203,35 @@ export function QuizPlayer({ sourceLabel, quiz }: { sourceLabel: string; quiz: Q
   const playCorrectSound = () => playBuffer(correctBufferRef.current);
 
   const handleModeSelect = (mode: StudyMode) => {
-    if (availableCount[mode] === 0) return;
     playClickSound();
     setSelectedMode(mode);
-    setQuestionCount(Math.min(MAX_QUESTIONS, Math.max(MIN_QUESTIONS, availableCount[mode])));
     // Hold the selection frame briefly before morphing into the next screen.
     setTimeout(() => {
       const startViewTransition = (
         document as Document & { startViewTransition?: (cb: () => void) => void }
       ).startViewTransition?.bind(document);
-      if (startViewTransition) startViewTransition(() => flushSync(() => setStep("select-count")));
-      else setStep("select-count");
+      if (startViewTransition) startViewTransition(() => flushSync(() => setStep("session")));
+      else setStep("session");
     }, 300);
   };
 
   const exitToModeSelect = () => setStep("select-mode");
+
+  // Briefly zooms the finished score panel in place (still inside the
+  // host's expand panel), then hands the result up so the caller can close
+  // that panel and present the score on its own — the "slam" landing.
+  // Sessions only know their own flat answered list; attempts (grouped by
+  // the real quiz_id each question belongs to) are computed here, since
+  // only QuizPlayer has quiz.quizIds.
+  const handleSessionFinished = (result: { passed: number; total: number; answered: AnsweredQuestion[] }) => {
+    setZooming(true);
+    setTimeout(() => {
+      onSessionComplete?.({ ...result, attempts: groupAnsweredByMode(result.answered, quiz.quizIds) });
+      setZooming(false);
+      setStep("select-mode");
+      setSelectedMode(null);
+    }, 420);
+  };
 
   return (
     <>
@@ -209,47 +254,56 @@ export function QuizPlayer({ sourceLabel, quiz }: { sourceLabel: string; quiz: Q
         </>
       )}
 
-      {step === "select-count" && selectedMode && (
-        <CountStep
-          modeLabel={labelFor(selectedMode) ?? ""}
-          count={questionCount}
-          onCountChange={setQuestionCount}
-          onBack={exitToModeSelect}
-          onContinue={() => setStep("session")}
-          min={Math.min(MIN_QUESTIONS, availableCount[selectedMode])}
-          max={Math.min(MAX_QUESTIONS, availableCount[selectedMode])}
-        />
-      )}
+      {step === "session" && selectedMode && (
+        <div className={zooming ? "quiz-session-zoom" : ""}>
+          {selectedMode === "flashcards" && (
+            <FlashcardSession
+              sourceLabel={sourceLabel}
+              bank={quiz.flashcards}
+              onExit={exitToModeSelect}
+              onCorrect={playCorrectSound}
+              onFinished={handleSessionFinished}
+            />
+          )}
 
-      {step === "session" && selectedMode === "flashcards" && (
-        <FlashcardSession sourceLabel={sourceLabel} bank={quiz.flashcards} onExit={exitToModeSelect} onCorrect={playCorrectSound} count={questionCount} />
-      )}
+          {selectedMode === "mcq" && (
+            <McqSession
+              sourceLabel={sourceLabel}
+              bank={quiz.mcq}
+              onExit={exitToModeSelect}
+              onCorrect={playCorrectSound}
+              onFinished={handleSessionFinished}
+            />
+          )}
 
-      {step === "session" && selectedMode === "mcq" && (
-        <McqSession sourceLabel={sourceLabel} bank={quiz.mcq} onExit={exitToModeSelect} onCorrect={playCorrectSound} count={questionCount} />
-      )}
+          {selectedMode === "freetext" && (
+            <FreeTextSession
+              sourceLabel={sourceLabel}
+              bank={quiz.openText}
+              onExit={exitToModeSelect}
+              onCorrect={playCorrectSound}
+              onFinished={handleSessionFinished}
+            />
+          )}
 
-      {step === "session" && selectedMode === "freetext" && (
-        <FreeTextSession sourceLabel={sourceLabel} bank={quiz.openText} onExit={exitToModeSelect} onCorrect={playCorrectSound} count={questionCount} />
-      )}
+          {selectedMode === "combination" && (
+            <CombinationSession
+              sourceLabel={sourceLabel}
+              banks={{ flashcards: quiz.flashcards, mcq: quiz.mcq, freetext: quiz.openText }}
+              onExit={exitToModeSelect}
+              onCorrect={playCorrectSound}
+              onFinished={handleSessionFinished}
+            />
+          )}
 
-      {step === "session" && selectedMode === "combination" && (
-        <CombinationSession
-          sourceLabel={sourceLabel}
-          banks={{ flashcards: quiz.flashcards, mcq: quiz.mcq, freetext: quiz.openText }}
-          onExit={exitToModeSelect}
-          onCorrect={playCorrectSound}
-          count={questionCount}
-        />
-      )}
-
-      {step === "session" && selectedMode === "auditive" && (
-        <AuditivePlaceholder
-          sourceLabel={sourceLabel}
-          prompts={quiz.flashcards.map((f) => f.question)}
-          onExit={exitToModeSelect}
-          count={questionCount}
-        />
+          {selectedMode === "auditive" && (
+            <AuditivePlaceholder
+              sourceLabel={sourceLabel}
+              prompts={quiz.flashcards.map((f) => f.question)}
+              onExit={exitToModeSelect}
+            />
+          )}
+        </div>
       )}
     </>
   );
